@@ -5,10 +5,7 @@ import 'package:flutter/material.dart';
 class SubscriptionInfoView extends StatelessWidget {
   final SubscriptionInfo? subscriptionInfo;
 
-  const SubscriptionInfoView({
-    super.key,
-    this.subscriptionInfo,
-  });
+  const SubscriptionInfoView({super.key, this.subscriptionInfo});
 
   @override
   Widget build(BuildContext context) {
@@ -24,11 +21,12 @@ class SubscriptionInfoView extends StatelessWidget {
 
     final useShow = use.traffic.show;
     final totalShow = total.traffic.show;
-    final expireShow = subscriptionInfo?.expire != null &&
-            subscriptionInfo!.expire != 0
-        ? DateTime.fromMillisecondsSinceEpoch(subscriptionInfo!.expire * 1000)
-            .show
-        : appLocalizations.infiniteTime;
+    final expireShow =
+        subscriptionInfo?.expire != null && subscriptionInfo!.expire != 0
+        ? DateTime.fromMillisecondsSinceEpoch(
+            subscriptionInfo!.expire * 1000,
+          ).show
+        : context.appLocalizations.infiniteTime;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -37,16 +35,12 @@ class SubscriptionInfoView extends StatelessWidget {
           value: progress,
           backgroundColor: context.colorScheme.primary.opacity15,
         ),
-        const SizedBox(
-          height: 8,
-        ),
+        const SizedBox(height: 8),
         Text(
           '$useShow / $totalShow · $expireShow',
           style: context.textTheme.labelMedium?.toLight,
         ),
-        const SizedBox(
-          height: 4,
-        ),
+        const SizedBox(height: 4),
       ],
     );
   }

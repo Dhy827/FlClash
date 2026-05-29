@@ -113,6 +113,7 @@ class SuperGridState extends State<SuperGrid> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    children = widget.children;
     _childrenNotifier.addListener(() {
       children = _childrenNotifier.value;
       if (widget.onUpdate != null) {
@@ -122,14 +123,11 @@ class SuperGridState extends State<SuperGrid> with TickerProviderStateMixin {
 
     _childrenNotifier.value = widget.children;
 
-    _fakeDragWidgetController = AnimationController.unbounded(
-      vsync: this,
-      duration: commonDuration,
-    );
+    _fakeDragWidgetController = AnimationController.unbounded(vsync: this);
 
     _shakeController = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: 120),
+      duration: const Duration(milliseconds: 120),
     );
 
     _shakeAnimation = Tween<double>(begin: -0.012, end: 0.012).animate(
@@ -140,7 +138,6 @@ class SuperGridState extends State<SuperGrid> with TickerProviderStateMixin {
       vsync: this,
       duration: commonDuration,
     );
-
     _initState();
   }
 
@@ -168,7 +165,7 @@ class SuperGridState extends State<SuperGrid> with TickerProviderStateMixin {
   }
 
   Future _transform() async {
-    List<Offset> layoutOffsets = [Offset(_containerSize.width, 0)];
+    final List<Offset> layoutOffsets = [Offset(_containerSize.width, 0)];
     final List<Offset> nextOffsets = [];
 
     for (final index in _tempIndexList) {
@@ -229,10 +226,14 @@ class SuperGridState extends State<SuperGrid> with TickerProviderStateMixin {
       final preAnimationValue = _transformAnimationMap[key]?.value;
       return MapEntry(
         key,
-        Tween(
-          begin: preAnimationValue ?? Offset.zero,
-          end: value.end,
-        ).animate(_transformController),
+        Tween(begin: preAnimationValue ?? Offset.zero, end: value.end).animate(
+          _transformController.drive(
+            Tween<double>(
+              begin: 0.0,
+              end: 1,
+            ).chain(CurveTween(curve: Curves.fastOutSlowIn)),
+          ),
+        ),
       );
     });
 
@@ -265,8 +266,9 @@ class SuperGridState extends State<SuperGrid> with TickerProviderStateMixin {
     if (_targetIndex == -1) {
       return;
     }
+    const tolerance = Tolerance(distance: 0.5, velocity: 0.01);
     const spring = SpringDescription(mass: 1, stiffness: 100, damping: 10);
-    final simulation = SpringSimulation(spring, 0, 1, 0);
+    final simulation = SpringSimulation(spring, 0, 1, 0, tolerance: tolerance);
     _fakeDragWidgetAnimation = Tween(
       begin: details.offset - _parentOffset,
       end: _targetOffset,
@@ -350,7 +352,7 @@ class SuperGridState extends State<SuperGrid> with TickerProviderStateMixin {
 
   Offset _getNextOffset(List<Offset> offsets, Size size) {
     final length = offsets.length;
-    Offset nextOffset = Offset(0, double.infinity);
+    Offset nextOffset = const Offset(0, double.infinity);
     for (int i = 0; i < length; i++) {
       final offset = offsets[i];
       if (offset.dy.moreOrEqual(nextOffset.dy)) {
@@ -431,7 +433,12 @@ class SuperGridState extends State<SuperGrid> with TickerProviderStateMixin {
         return AbsorbPointer(child: item);
       },
       onWillAcceptWithDetails: (_) {
-        debouncer.call(FunctionTag.handleWill, _handleWill, args: [index]);
+        debouncer.call(
+          FunctionTag.handleWill,
+          _handleWill,
+          args: [index],
+          duration: commonDuration,
+        );
         return false;
       },
     );
@@ -678,9 +685,9 @@ class _DeletableContainerState extends State<_DeletableContainer>
                 height: 24,
                 child: IconButton.filled(
                   iconSize: 20,
-                  padding: EdgeInsets.all(2),
+                  padding: const EdgeInsets.all(2),
                   onPressed: _handleDel,
-                  icon: Icon(Icons.close),
+                  icon: const Icon(Icons.close),
                 ),
               ),
             ),

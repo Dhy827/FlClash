@@ -12,6 +12,7 @@ class LogLevelItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final logLevel = ref.watch(
       patchClashConfigProvider.select((state) => state.logLevel),
     );
@@ -28,7 +29,7 @@ class LogLevelItem extends ConsumerWidget {
           }
           ref
               .read(patchClashConfigProvider.notifier)
-              .updateState((state) => state.copyWith(logLevel: value));
+              .update((state) => state.copyWith(logLevel: value));
         },
         textBuilder: (logLevel) => logLevel.name,
         value: logLevel,
@@ -42,6 +43,7 @@ class UaItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final globalUa = ref.watch(
       patchClashConfigProvider.select((state) => state.globalUa),
     );
@@ -56,7 +58,7 @@ class UaItem extends ConsumerWidget {
         onChanged: (value) {
           ref
               .read(patchClashConfigProvider.notifier)
-              .updateState((state) => state.copyWith(globalUa: value));
+              .update((state) => state.copyWith(globalUa: value));
         },
         textBuilder: (ua) => ua ?? appLocalizations.defaultText,
       ),
@@ -69,6 +71,7 @@ class KeepAliveIntervalItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final keepAliveInterval = ref.watch(
       patchClashConfigProvider.select((state) => state.keepAliveInterval),
     );
@@ -98,9 +101,7 @@ class KeepAliveIntervalItem extends ConsumerWidget {
           final intValue = int.parse(value);
           ref
               .read(patchClashConfigProvider.notifier)
-              .updateState(
-                (state) => state.copyWith(keepAliveInterval: intValue),
-              );
+              .update((state) => state.copyWith(keepAliveInterval: intValue));
         },
       ),
     );
@@ -112,6 +113,7 @@ class TestUrlItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final testUrl = ref.watch(
       appSettingProvider.select((state) => state.testUrl),
     );
@@ -138,7 +140,7 @@ class TestUrlItem extends ConsumerWidget {
           }
           ref
               .read(appSettingProvider.notifier)
-              .updateState((state) => state.copyWith(testUrl: value));
+              .update((state) => state.copyWith(testUrl: value));
         },
       ),
     );
@@ -149,12 +151,13 @@ class PortItem extends ConsumerWidget {
   const PortItem({super.key});
 
   Future<void> handleShowPortDialog() async {
-    await globalState.showCommonDialog(child: _PortDialog());
+    await globalState.showCommonDialog(child: const _PortDialog());
     // inputDelegate.onChanged(value);
   }
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final mixedPort = ref.watch(
       patchClashConfigProvider.select((state) => state.mixedPort),
     );
@@ -186,7 +189,7 @@ class PortItem extends ConsumerWidget {
       //       return;
       //     }
       //     final mixedPort = int.parse(value);
-      //     ref.read(patchClashConfigProvider.notifier).updateState(
+      //     ref.read(patchClashConfigProvider.notifier).update(
       //           (state) => state.copyWith(
       //             mixedPort: mixedPort,
       //           ),
@@ -198,36 +201,32 @@ class PortItem extends ConsumerWidget {
   }
 }
 
-class HostsItem extends StatelessWidget {
+class HostsItem extends ConsumerWidget {
   const HostsItem({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
+    final hosts = ref.watch(
+      patchClashConfigProvider.select((state) => state.hosts),
+    );
     return ListItem.open(
       leading: const Icon(Icons.view_list_outlined),
       title: const Text('Hosts'),
       subtitle: Text(appLocalizations.hostsDesc),
       delegate: OpenDelegate(
         blur: false,
-        title: 'Hosts',
-        widget: Consumer(
-          builder: (_, ref, _) {
-            final hosts = ref.watch(
-              patchClashConfigProvider.select((state) => state.hosts),
-            );
-            return MapInputPage(
-              title: 'Hosts',
-              map: hosts,
-              titleBuilder: (item) => Text(item.key),
-              subtitleBuilder: (item) => Text(item.value),
-              onChange: (value) {
-                ref
-                    .read(patchClashConfigProvider.notifier)
-                    .updateState((state) => state.copyWith(hosts: value));
-              },
-            );
-          },
+        widget: MapInputPage(
+          title: 'Hosts',
+          map: hosts,
+          titleBuilder: (item) => Text(item.key),
+          subtitleBuilder: (item) => Text(item.value),
         ),
+        onChanged: (value) {
+          ref
+              .read(patchClashConfigProvider.notifier)
+              .update((state) => state.copyWith(hosts: value));
+        },
       ),
     );
   }
@@ -238,6 +237,7 @@ class Ipv6Item extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final ipv6 = ref.watch(
       patchClashConfigProvider.select((state) => state.ipv6),
     );
@@ -250,7 +250,7 @@ class Ipv6Item extends ConsumerWidget {
         onChanged: (bool value) async {
           ref
               .read(patchClashConfigProvider.notifier)
-              .updateState((state) => state.copyWith(ipv6: value));
+              .update((state) => state.copyWith(ipv6: value));
         },
       ),
     );
@@ -262,6 +262,7 @@ class AppendSystemDNSItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final appendSystemDNS = ref.watch(
       networkSettingProvider.select((state) => state.appendSystemDns),
     );
@@ -274,7 +275,7 @@ class AppendSystemDNSItem extends ConsumerWidget {
         onChanged: (bool value) async {
           ref
               .read(networkSettingProvider.notifier)
-              .updateState((state) => state.copyWith(appendSystemDns: value));
+              .update((state) => state.copyWith(appendSystemDns: value));
         },
       ),
     );
@@ -286,6 +287,7 @@ class AllowLanItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final allowLan = ref.watch(
       patchClashConfigProvider.select((state) => state.allowLan),
     );
@@ -298,7 +300,7 @@ class AllowLanItem extends ConsumerWidget {
         onChanged: (bool value) async {
           ref
               .read(patchClashConfigProvider.notifier)
-              .updateState((state) => state.copyWith(allowLan: value));
+              .update((state) => state.copyWith(allowLan: value));
         },
       ),
     );
@@ -310,6 +312,7 @@ class UnifiedDelayItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final unifiedDelay = ref.watch(
       patchClashConfigProvider.select((state) => state.unifiedDelay),
     );
@@ -323,7 +326,7 @@ class UnifiedDelayItem extends ConsumerWidget {
         onChanged: (bool value) async {
           ref
               .read(patchClashConfigProvider.notifier)
-              .updateState((state) => state.copyWith(unifiedDelay: value));
+              .update((state) => state.copyWith(unifiedDelay: value));
         },
       ),
     );
@@ -335,6 +338,7 @@ class FindProcessItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final findProcess = ref.watch(
       patchClashConfigProvider.select(
         (state) => state.findProcessMode == FindProcessMode.always,
@@ -350,7 +354,7 @@ class FindProcessItem extends ConsumerWidget {
         onChanged: (bool value) async {
           ref
               .read(patchClashConfigProvider.notifier)
-              .updateState(
+              .update(
                 (state) => state.copyWith(
                   findProcessMode: value
                       ? FindProcessMode.always
@@ -368,6 +372,7 @@ class TcpConcurrentItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final tcpConcurrent = ref.watch(
       patchClashConfigProvider.select((state) => state.tcpConcurrent),
     );
@@ -380,7 +385,7 @@ class TcpConcurrentItem extends ConsumerWidget {
         onChanged: (value) async {
           ref
               .read(patchClashConfigProvider.notifier)
-              .updateState((state) => state.copyWith(tcpConcurrent: value));
+              .update((state) => state.copyWith(tcpConcurrent: value));
         },
       ),
     );
@@ -392,6 +397,7 @@ class GeodataLoaderItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final isMemconservative = ref.watch(
       patchClashConfigProvider.select(
         (state) => state.geodataLoader == GeodataLoader.memconservative,
@@ -406,7 +412,7 @@ class GeodataLoaderItem extends ConsumerWidget {
         onChanged: (bool value) async {
           ref
               .read(patchClashConfigProvider.notifier)
-              .updateState(
+              .update(
                 (state) => state.copyWith(
                   geodataLoader: value
                       ? GeodataLoader.memconservative
@@ -424,6 +430,7 @@ class ExternalControllerItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final hasExternalController = ref.watch(
       patchClashConfigProvider.select(
         (state) => state.externalController == ExternalControllerStatus.open,
@@ -438,7 +445,7 @@ class ExternalControllerItem extends ConsumerWidget {
         onChanged: (bool value) async {
           ref
               .read(patchClashConfigProvider.notifier)
-              .updateState(
+              .update(
                 (state) => state.copyWith(
                   externalController: value
                       ? ExternalControllerStatus.open
@@ -452,20 +459,20 @@ class ExternalControllerItem extends ConsumerWidget {
 }
 
 final generalItems = <Widget>[
-  LogLevelItem(),
-  UaItem(),
-  if (system.isDesktop) KeepAliveIntervalItem(),
-  TestUrlItem(),
-  PortItem(),
-  HostsItem(),
-  Ipv6Item(),
-  AllowLanItem(),
-  UnifiedDelayItem(),
-  AppendSystemDNSItem(),
-  FindProcessItem(),
-  TcpConcurrentItem(),
-  GeodataLoaderItem(),
-  ExternalControllerItem(),
+  const LogLevelItem(),
+  const UaItem(),
+  if (system.isDesktop) const KeepAliveIntervalItem(),
+  const TestUrlItem(),
+  const PortItem(),
+  const HostsItem(),
+  const Ipv6Item(),
+  const AllowLanItem(),
+  const UnifiedDelayItem(),
+  const AppendSystemDNSItem(),
+  const FindProcessItem(),
+  const TcpConcurrentItem(),
+  const GeodataLoaderItem(),
+  const ExternalControllerItem(),
 ].separated(const Divider(height: 0)).toList();
 
 class _PortDialog extends ConsumerStatefulWidget {
@@ -479,11 +486,11 @@ class _PortDialogState extends ConsumerState<_PortDialog> {
   final _formKey = GlobalKey<FormState>();
   bool _isMore = false;
 
-  late TextEditingController _mixedPortController;
-  late TextEditingController _portController;
-  late TextEditingController _socksPortController;
-  late TextEditingController _redirPortController;
-  late TextEditingController _tProxyPortController;
+  late final TextEditingController _mixedPortController;
+  late final TextEditingController _portController;
+  late final TextEditingController _socksPortController;
+  late final TextEditingController _redirPortController;
+  late final TextEditingController _tProxyPortController;
 
   @override
   void initState() {
@@ -491,11 +498,11 @@ class _PortDialogState extends ConsumerState<_PortDialog> {
     final vm5 = ref.read(
       patchClashConfigProvider.select((state) {
         return VM5(
-          a: state.mixedPort,
-          b: state.port,
-          c: state.socksPort,
-          d: state.redirPort,
-          e: state.tproxyPort,
+          state.mixedPort,
+          state.port,
+          state.socksPort,
+          state.redirPort,
+          state.tproxyPort,
         );
       }),
     );
@@ -508,14 +515,14 @@ class _PortDialogState extends ConsumerState<_PortDialog> {
 
   Future<void> _handleReset() async {
     final res = await globalState.showMessage(
-      message: TextSpan(text: appLocalizations.resetTip),
+      message: TextSpan(text: context.appLocalizations.resetTip),
     );
     if (res != true) {
       return;
     }
     ref
         .read(patchClashConfigProvider.notifier)
-        .updateState(
+        .update(
           (state) => state.copyWith(
             mixedPort: 7890,
             port: 0,
@@ -533,7 +540,7 @@ class _PortDialogState extends ConsumerState<_PortDialog> {
     if (_formKey.currentState?.validate() == false) return;
     ref
         .read(patchClashConfigProvider.notifier)
-        .updateState(
+        .update(
           (state) => state.copyWith(
             mixedPort: int.parse(_mixedPortController.text),
             port: int.parse(_portController.text),
@@ -552,7 +559,18 @@ class _PortDialogState extends ConsumerState<_PortDialog> {
   }
 
   @override
+  void dispose() {
+    _mixedPortController.dispose();
+    _portController.dispose();
+    _socksPortController.dispose();
+    _redirPortController.dispose();
+    _tProxyPortController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     return CommonDialog(
       title: appLocalizations.port,
       actions: [
@@ -583,7 +601,7 @@ class _PortDialogState extends ConsumerState<_PortDialog> {
         autovalidateMode: AutovalidateMode.onUserInteraction,
         key: _formKey,
         child: Padding(
-          padding: EdgeInsets.only(top: 8),
+          padding: const EdgeInsets.only(top: 8),
           child: AnimatedSize(
             duration: midDuration,
             curve: Curves.easeOutQuad,

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/adapter/inbound"
 	"github.com/metacubex/mihomo/adapter/outboundgroup"
@@ -17,6 +18,7 @@ import (
 	"github.com/metacubex/mihomo/constant/features"
 	cp "github.com/metacubex/mihomo/constant/provider"
 	"github.com/metacubex/mihomo/hub"
+	"github.com/metacubex/mihomo/hub/executor"
 	"github.com/metacubex/mihomo/hub/route"
 	"github.com/metacubex/mihomo/listener"
 	"github.com/metacubex/mihomo/log"
@@ -34,13 +36,8 @@ var (
 	isRunning     = false
 	runLock       sync.Mutex
 	mBatch, _     = batch.New[bool](context.Background(), batch.WithConcurrencyNum[bool](50))
+	debugError    = false
 )
-
-type ExternalProviders []ExternalProvider
-
-func (a ExternalProviders) Len() int           { return len(a) }
-func (a ExternalProviders) Less(i, j int) bool { return a[i].Name < a[j].Name }
-func (a ExternalProviders) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 func getExternalProvidersRaw() map[string]cp.Provider {
 	eps := make(map[string]cp.Provider)
@@ -143,7 +140,7 @@ func stopListeners() {
 }
 
 func patchSelectGroup(mapping map[string]string) {
-	for name, proxy := range tunnel.ProxiesWithProviders() {
+	for name, proxy := range tunnel.AllProxies() {
 		outbound, ok := proxy.(*adapter.Proxy)
 		if !ok {
 			continue
@@ -240,37 +237,19 @@ func updateConfig(params *UpdateParams) {
 	updateListeners()
 }
 
-func parseWithPath(path string) (*config.Config, error) {
-	buf, err := readFile(path)
-	if err != nil {
-		return nil, err
-	}
-	rawConfig := config.DefaultRawConfig()
-	err = UnmarshalJson(buf, rawConfig)
-	if err != nil {
-		return nil, err
-	}
-	parseRawConfig, err := config.ParseRawConfig(rawConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	return parseRawConfig, nil
-}
-
-func setupConfig(params *SetupParams) error {
+func applyConfig(params *SetupParams) error {
+	runtime.GC()
 	runLock.Lock()
 	defer runLock.Unlock()
 	var err error
 	constant.DefaultTestURL = params.TestURL
-	currentConfig, err = parseWithPath(filepath.Join(constant.Path.HomeDir(), "config.json"))
+	currentConfig, err = executor.ParseWithPath(filepath.Join(constant.Path.HomeDir(), "config.yaml"))
 	if err != nil {
 		currentConfig, _ = config.ParseRawConfig(config.DefaultRawConfig())
 	}
 	hub.ApplyConfig(currentConfig)
 	patchSelectGroup(params.SelectedMap)
 	updateListeners()
-	runtime.GC()
 	return err
 }
 
@@ -279,4 +258,11 @@ func UnmarshalJson(data []byte, v any) error {
 	decoder.UseNumber()
 	err := decoder.Decode(v)
 	return err
+}
+
+func logError(format string, args ...interface{}) {
+	log.Errorln(format, args...)
+	if debugError {
+		fmt.Fprintf(os.Stderr, "[ERROR] "+format+"\n", args...)
+	}
 }

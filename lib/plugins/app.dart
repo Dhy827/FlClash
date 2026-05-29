@@ -1,11 +1,7 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
-import 'dart:isolate';
 
-import 'package:fl_clash/common/app_localizations.dart';
-import 'package:fl_clash/common/constant.dart';
-import 'package:fl_clash/common/system.dart';
+import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/models/models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,35 +31,29 @@ class App {
   }
 
   Future<bool?> moveTaskToBack() async {
-    return await methodChannel.invokeMethod<bool>('moveTaskToBack');
+    return methodChannel.invokeMethod<bool>('moveTaskToBack');
   }
 
   Future<List<Package>> getPackages() async {
     final packagesString = await methodChannel.invokeMethod<String>(
       'getPackages',
     );
-    return Isolate.run<List<Package>>(() {
-      final List<dynamic> packagesRaw = packagesString != null
-          ? json.decode(packagesString)
-          : [];
-      return packagesRaw.map((e) => Package.fromJson(e)).toSet().toList();
-    });
+    final List<dynamic> packagesRaw =
+        (await packagesString?.commonToJSON<List<dynamic>>()) ?? [];
+    return packagesRaw.map((e) => Package.fromJson(e)).toSet().toList();
   }
 
   Future<List<String>> getChinaPackageNames() async {
     final packageNamesString = await methodChannel.invokeMethod<String>(
       'getChinaPackageNames',
     );
-    return Isolate.run<List<String>>(() {
-      final List<dynamic> packageNamesRaw = packageNamesString != null
-          ? json.decode(packageNamesString)
-          : [];
-      return packageNamesRaw.map((e) => e.toString()).toList();
-    });
+    final List<dynamic> packageNamesRaw =
+        await packageNamesString?.commonToJSON<List<dynamic>>() ?? [];
+    return packageNamesRaw.map((e) => e.toString()).toList();
   }
 
   Future<bool?> requestNotificationsPermission() async {
-    return await methodChannel.invokeMethod<bool>(
+    return methodChannel.invokeMethod<bool>(
       'requestNotificationsPermission',
     );
   }
@@ -84,22 +74,37 @@ class App {
   }
 
   Future<bool?> tip(String? message) async {
-    return await methodChannel.invokeMethod<bool>('tip', {
+    return methodChannel.invokeMethod<bool>('tip', {
       'message': '$message',
     });
   }
 
   Future<bool?> initShortcuts() async {
-    return await methodChannel.invokeMethod<bool>(
+    return methodChannel.invokeMethod<bool>(
       'initShortcuts',
-      appLocalizations.toggle,
+      currentAppLocalizations.toggle,
     );
   }
 
   Future<bool?> updateExcludeFromRecents(bool value) async {
-    return await methodChannel.invokeMethod<bool>('updateExcludeFromRecents', {
+    return methodChannel.invokeMethod<bool>('updateExcludeFromRecents', {
       'value': value,
     });
+  }
+
+  Future<bool?> isBatteryOptimizationDisabled() async {
+    if (!Platform.isAndroid) return true;
+    return methodChannel.invokeMethod<bool>('isBatteryOptimizationDisabled');
+  }
+
+  Future<bool?> openBatteryOptimizationSettings() async {
+    if (!Platform.isAndroid) return false;
+    return methodChannel.invokeMethod<bool>('openBatteryOptimizationSettings');
+  }
+
+  Future<bool?> openAppSettings() async {
+    if (!Platform.isAndroid) return false;
+    return methodChannel.invokeMethod<bool>('openAppSettings');
   }
 }
 

@@ -8,13 +8,14 @@ import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/core.dart';
 
 import 'interface.dart';
+import 'transport.dart';
 
 class CoreService extends CoreHandlerInterface {
   static CoreService? _instance;
 
-  final Completer<ServerSocket> _serverCompleter = Completer();
+  late final IPCCoreTransport _transport;
 
-  Completer<Socket> _socketCompleter = Completer();
+  Completer<bool> _shutdownCompleter = Completer();
 
   final Map<String, Completer> _callbackCompleterMap = {};
 
@@ -26,6 +27,9 @@ class CoreService extends CoreHandlerInterface {
   }
 
   CoreService._internal() {
+    _transport = IPCCoreTransport(
+      address: system.isWindows ? windowsPipeName : unixSocketPath,
+    );
     _initServer();
   }
 
@@ -35,70 +39,73 @@ class CoreService extends CoreHandlerInterface {
     if (result.id?.isEmpty == true) {
       coreEventManager.sendEvent(CoreEvent.fromJson(result.data));
     }
+    if (completer?.isCompleted == true) {
+      return;
+    }
     completer?.complete(data);
   }
 
   Future<void> _initServer() async {
-    final server = await retry(
-      task: () async {
-        try {
-          final address = !system.isWindows
-              ? InternetAddress(unixSocketPath, type: InternetAddressType.unix)
-              : InternetAddress(localhost, type: InternetAddressType.IPv4);
-          await _deleteSocketFile();
-          final server = await ServerSocket.bind(address, 0, shared: true);
-          server.listen((socket) async {
-            await _attachSocket(socket);
-          });
-          return server;
-        } catch (_) {
-          return null;
-        }
-      },
-      retryIf: (server) => server == null,
-    );
-    if (server == null) {
-      exit(0);
-    }
-    _serverCompleter.complete(server);
-  }
+    await _transport.init();
 
-  Future<void> _attachSocket(Socket socket) async {
-    await _destroySocket();
-    _socketCompleter.complete(socket);
-    socket
+    _transport.onDisconnect = () {
+      _handleInvokeCrashEvent();
+      if (!_shutdownCompleter.isCompleted) {
+        _shutdownCompleter.complete(true);
+      }
+    };
+
+    _transport.dataStream
         .transform(uint8ListToListIntConverter)
         .transform(utf8.decoder)
-        .transform(LineSplitter())
-        .listen((data) {
-          handleResult(ActionResult.fromJson(json.decode(data.trim())));
-        })
-        .onDone(() {
-          _handleInvokeCrashEvent();
-        });
+        .listen(
+          (data) async {
+            try {
+              final dataJson = await data.trim().commonToJSON<dynamic>();
+              handleResult(ActionResult.fromJson(dataJson));
+            } catch (e) {
+              commonPrint.log(
+                'Failed to parse transport data: $e',
+                logLevel: LogLevel.error,
+              );
+            }
+          },
+          onError: (error) {
+            commonPrint.log(
+              'Transport data stream error: $error',
+              logLevel: LogLevel.error,
+            );
+          },
+        );
   }
 
   void _handleInvokeCrashEvent() {
     coreEventManager.sendEvent(
-      CoreEvent(type: CoreEventType.crash, data: 'socket done'),
+      const CoreEvent(type: CoreEventType.crash, data: 'core done'),
     );
   }
 
   Future<void> start() async {
     if (_process != null) {
-      await shutdown();
+      await shutdown(false);
     }
-    final serverSocket = await _serverCompleter.future;
-    final arg = system.isWindows
-        ? '${serverSocket.port}'
-        : serverSocket.address.address;
     if (system.isWindows && await system.checkIsAdmin()) {
-      final isSuccess = await request.startCoreByHelper(arg);
+      final isSuccess = await request.startCoreByHelper(_transport.address);
       if (isSuccess) {
+        await _transport.connectionCompleter.future;
         return;
       }
     }
-    _process = await Process.start(appPath.corePath, [arg]);
+    try {
+      _process = await Process.start(appPath.corePath, [_transport.address]);
+    } catch (e) {
+      commonPrint.log(
+        'Failed to start core process: $e',
+        logLevel: LogLevel.error,
+      );
+      _handleInvokeCrashEvent();
+      return;
+    }
     _process?.stdout.listen((_) {});
     _process?.stderr.listen((e) {
       final error = utf8.decode(e);
@@ -106,49 +113,36 @@ class CoreService extends CoreHandlerInterface {
         commonPrint.log(error, logLevel: LogLevel.warning);
       }
     });
-    await _socketCompleter.future;
+    await _transport.connectionCompleter.future;
   }
 
   @override
-  destroy() async {
-    final server = await _serverCompleter.future;
-    await server.close();
-    await _deleteSocketFile();
+  FutureOr<bool> destroy() async {
+    await shutdown(false);
+    await _transport.close();
     return true;
   }
 
   Future<void> sendMessage(String message) async {
-    final socket = await _socketCompleter.future;
-    socket.writeln(message);
-  }
-
-  Future<void> _deleteSocketFile() async {
-    if (!system.isWindows) {
-      final file = File(unixSocketPath);
-      if (await file.exists()) {
-        await file.delete();
-      }
-    }
-  }
-
-  Future<void> _destroySocket() async {
-    if (_socketCompleter.isCompleted) {
-      final socket = await _socketCompleter.future;
-      _socketCompleter = Completer();
-      socket.close();
-    }
+    await _transport.connectionCompleter.future;
+    _transport.send(message);
   }
 
   @override
-  shutdown() async {
-    await _destroySocket();
-    _clearCompleter();
+  Future<bool> shutdown(bool isUser) async {
+    _shutdownCompleter = Completer();
     if (system.isWindows) {
       await request.stopCoreByHelper();
     }
+    _transport.disconnected();
     _process?.kill();
     _process = null;
-    return true;
+    _clearCompleter();
+    if (isUser) {
+      return _shutdownCompleter.future;
+    } else {
+      return true;
+    }
   }
 
   void _clearCompleter() {
@@ -159,7 +153,6 @@ class CoreService extends CoreHandlerInterface {
 
   @override
   Future<String> preload() async {
-    await _serverCompleter.future;
     await start();
     return '';
   }
@@ -186,7 +179,7 @@ class CoreService extends CoreHandlerInterface {
   }
 
   @override
-  Completer get completer => _socketCompleter;
+  Completer get completer => _transport.connectionCompleter;
 }
 
 final coreService = system.isDesktop ? CoreService() : null;

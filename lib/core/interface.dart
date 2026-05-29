@@ -1,18 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:isolate';
 
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
-import 'package:flutter/foundation.dart';
 
 mixin CoreInterface {
   Future<bool> init(InitParams params);
 
   Future<String> preload();
 
-  Future<bool> shutdown();
+  Future<bool> shutdown(bool isUser);
 
   Future<bool> get isInit;
 
@@ -28,7 +26,7 @@ mixin CoreInterface {
 
   Future<String> setupConfig(SetupParams setupParams);
 
-  Future<Map> getProxies();
+  Future<ProxiesData> getProxies();
 
   Future<String> changeProxy(ChangeProxyParams changeProxyParams);
 
@@ -86,16 +84,23 @@ abstract class CoreHandlerInterface with CoreInterface {
     dynamic data,
     Duration? timeout,
   }) async {
-    await completer.future;
-    if (kDebugMode) {
-      commonPrint.log('Invoke ${method.name} ${DateTime.now()} $data');
+    try {
+      await completer.future.timeout(const Duration(seconds: 10));
+    } catch (e) {
+      commonPrint.log(
+        'Invoke pre ${method.name} timeout $e',
+        logLevel: LogLevel.error,
+      );
+      return null;
     }
-
-    return utils.handleWatch(
-      function: () async {
-        return await invoke(method: method, data: data, timeout: timeout);
+    return await utils.handleWatch(
+      onStart: () {
+        commonPrint.log('Invoke ${method.name} ${DateTime.now()} $data');
       },
-      onWatch: (data, elapsedMilliseconds) {
+      function: () async {
+        return invoke<T>(method: method, data: data, timeout: timeout);
+      },
+      onEnd: (data, elapsedMilliseconds) {
         commonPrint.log('Invoke ${method.name} ${elapsedMilliseconds}ms');
       },
     );
@@ -124,7 +129,7 @@ abstract class CoreHandlerInterface with CoreInterface {
   }
 
   @override
-  Future<bool> shutdown();
+  Future<bool> shutdown(bool isUser);
 
   @override
   Future<bool> get isInit async {
@@ -156,16 +161,15 @@ abstract class CoreHandlerInterface with CoreInterface {
 
   @override
   Future<Result> getConfig(String path) async {
-    return await _invoke<Result>(method: ActionMethod.getConfig, data: path) ??
-        Result.success({});
+    final res = await _invoke(method: ActionMethod.getConfig, data: path);
+    return res ?? Result.success({});
   }
 
   @override
   Future<String> setupConfig(SetupParams setupParams) async {
-    final data = await Isolate.run(() => json.encode(setupParams));
     return await _invoke<String>(
           method: ActionMethod.setupConfig,
-          data: data,
+          data: json.encode(setupParams),
         ) ??
         '';
   }
@@ -176,9 +180,13 @@ abstract class CoreHandlerInterface with CoreInterface {
   }
 
   @override
-  Future<Map> getProxies() async {
-    final map = await _invoke<Map>(method: ActionMethod.getProxies);
-    return map ?? {};
+  Future<ProxiesData> getProxies() async {
+    final data = await _invoke<Map<String, dynamic>>(
+      method: ActionMethod.getProxies,
+    );
+    return data != null
+        ? ProxiesData.fromJson(data)
+        : const ProxiesData(proxies: {}, all: []);
   }
 
   @override
@@ -284,17 +292,17 @@ abstract class CoreHandlerInterface with CoreInterface {
   }
 
   @override
-  resetTraffic() {
+  FutureOr<void> resetTraffic() {
     _invoke(method: ActionMethod.resetTraffic);
   }
 
   @override
-  startLog() {
+  FutureOr<void> startLog() {
     _invoke(method: ActionMethod.startLog);
   }
 
   @override
-  stopLog() {
+  FutureOr<void> stopLog() {
     _invoke<bool>(method: ActionMethod.stopLog);
   }
 
@@ -318,7 +326,7 @@ abstract class CoreHandlerInterface with CoreInterface {
     return await _invoke<String>(
           method: ActionMethod.asyncTestDelay,
           data: json.encode(delayParams),
-          timeout: Duration(seconds: 6),
+          timeout: const Duration(seconds: 6),
         ) ??
         json.encode(Delay(name: proxyName, value: -1, url: url));
   }

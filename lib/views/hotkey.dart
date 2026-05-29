@@ -6,6 +6,7 @@ import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/card.dart';
 import 'package:fl_clash/widgets/dialog.dart';
 import 'package:fl_clash/widgets/list.dart';
+import 'package:fl_clash/widgets/scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,7 +20,8 @@ extension IntlExt on Intl {
 class HotKeyView extends StatelessWidget {
   const HotKeyView({super.key});
 
-  String getSubtitle(HotKeyAction hotKeyAction) {
+  String getSubtitle(BuildContext context, HotKeyAction hotKeyAction) {
+    final appLocalizations = context.appLocalizations;
     final key = hotKeyAction.key;
     if (key == null) {
       return appLocalizations.noHotKey;
@@ -37,44 +39,50 @@ class HotKeyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.builder(
-      itemCount: HotAction.values.length,
-      itemBuilder: (_, index) {
-        final hotAction = HotAction.values[index];
-        return Consumer(
-          builder: (_, ref, _) {
-            final hotKeyAction = ref.watch(getHotKeyActionProvider(hotAction));
-            return ListItem(
-              title: Text(IntlExt.actionMessage(hotAction.name)),
-              subtitle: Text(
-                getSubtitle(hotKeyAction),
-                style: context.textTheme.bodyMedium?.copyWith(
-                  color: context.colorScheme.primary,
+    final appLocalizations = context.appLocalizations;
+    return BaseScaffold(
+      title: appLocalizations.hotkeyManagement,
+      body: ListView.builder(
+        itemCount: HotAction.values.length,
+        itemBuilder: (_, index) {
+          final hotAction = HotAction.values[index];
+          return Consumer(
+            builder: (_, ref, _) {
+              final hotKeyAction = ref.watch(
+                getHotKeyActionProvider(hotAction),
+              );
+              return ListItem(
+                title: Text(IntlExt.actionMessage(hotAction.name)),
+                subtitle: Text(
+                  getSubtitle(context, hotKeyAction),
+                  style: context.textTheme.bodyMedium?.copyWith(
+                    color: context.colorScheme.primary,
+                  ),
                 ),
-              ),
-              onTap: () {
-                globalState.showCommonDialog(
-                  child: HotKeyRecorder(hotKeyAction: hotKeyAction),
-                );
-              },
-            );
-          },
-        );
-      },
+                onTap: () {
+                  globalState.showCommonDialog(
+                    child: HotKeyRecorder(hotKeyAction: hotKeyAction),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
 
-class HotKeyRecorder extends StatefulWidget {
+class HotKeyRecorder extends ConsumerStatefulWidget {
   final HotKeyAction hotKeyAction;
 
   const HotKeyRecorder({super.key, required this.hotKeyAction});
 
   @override
-  State<HotKeyRecorder> createState() => _HotKeyRecorderState();
+  ConsumerState<HotKeyRecorder> createState() => _HotKeyRecorderState();
 }
 
-class _HotKeyRecorderState extends State<HotKeyRecorder> {
+class _HotKeyRecorderState extends ConsumerState<HotKeyRecorder> {
   late ValueNotifier<HotKeyAction> hotKeyActionNotifier;
 
   @override
@@ -114,14 +122,15 @@ class _HotKeyRecorderState extends State<HotKeyRecorder> {
 
   void _handleRemove() {
     Navigator.of(context).pop();
-    globalState.appController.updateOrAddHotKeyAction(
+    _updateOrAddHotKeyAction(
       hotKeyActionNotifier.value.copyWith(modifiers: {}, key: null),
     );
   }
 
   void _handleConfirm() {
+    final appLocalizations = context.appLocalizations;
     Navigator.of(context).pop();
-    final config = globalState.config;
+    final hotKeyActions = ref.read(hotKeyActionsProvider);
     final currentHotkeyAction = hotKeyActionNotifier.value;
     if (currentHotkeyAction.key == null ||
         currentHotkeyAction.modifiers.isEmpty) {
@@ -131,7 +140,6 @@ class _HotKeyRecorderState extends State<HotKeyRecorder> {
       );
       return;
     }
-    final hotKeyActions = config.hotKeyActions;
     final index = hotKeyActions.indexWhere(
       (item) =>
           item.key == currentHotkeyAction.key &&
@@ -147,11 +155,30 @@ class _HotKeyRecorderState extends State<HotKeyRecorder> {
       );
       return;
     }
-    globalState.appController.updateOrAddHotKeyAction(currentHotkeyAction);
+    _updateOrAddHotKeyAction(currentHotkeyAction);
+  }
+
+  void _updateOrAddHotKeyAction(HotKeyAction hotKeyAction) {
+    final hotKeyActions = ref.read(hotKeyActionsProvider);
+    final index = hotKeyActions.indexWhere(
+      (item) => item.action == hotKeyAction.action,
+    );
+    if (index == -1) {
+      ref.read(hotKeyActionsProvider.notifier).value = List.from(hotKeyActions)
+        ..add(hotKeyAction);
+    } else {
+      ref.read(hotKeyActionsProvider.notifier).value = List.from(hotKeyActions)
+        ..[index] = hotKeyAction;
+    }
+
+    ref.read(hotKeyActionsProvider.notifier).value = index == -1
+        ? (List.from(hotKeyActions)..add(hotKeyAction))
+        : (List.from(hotKeyActions)..[index] = hotKeyAction);
   }
 
   @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     return Focus(
       onKeyEvent: (_, _) {
         return KeyEventResult.handled;

@@ -3,7 +3,9 @@ import 'dart:io';
 
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/core/core.dart';
+import 'package:fl_clash/models/common.dart';
 import 'package:fl_clash/models/core.dart';
+import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/widgets.dart';
@@ -13,9 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 typedef UpdatingMap = Map<String, bool>;
 
 class ProvidersView extends ConsumerStatefulWidget {
-  final SheetType type;
-
-  const ProvidersView({super.key, required this.type});
+  const ProvidersView({super.key});
 
   @override
   ConsumerState<ProvidersView> createState() => _ProvidersViewState();
@@ -23,39 +23,27 @@ class ProvidersView extends ConsumerStatefulWidget {
 
 class _ProvidersViewState extends ConsumerState<ProvidersView> {
   Future<void> _updateProviders() async {
+    final ref = globalState.container;
     final providers = ref.read(providersProvider);
-    final providersNotifier = ref.read(providersProvider.notifier);
-    final messages = [];
+    final List<UpdatingMessage> messages = [];
     final updateProviders = providers.map<Future>((provider) async {
-      providersNotifier.setProvider(provider.copyWith(isUpdating: true));
-      final message = await coreController.updateExternalProvider(
-        providerName: provider.name,
-      );
+      final message = await ref
+          .read(proxiesActionProvider.notifier)
+          .updateProvider(provider);
       if (message.isNotEmpty) {
-        messages.add('${provider.name}: $message \n');
+        messages.add(UpdatingMessage(label: provider.name, message: message));
       }
-      providersNotifier.setProvider(
-        await coreController.getExternalProvider(provider.name),
-      );
     });
-    final titleMedium = context.textTheme.titleMedium;
     await Future.wait(updateProviders);
-    globalState.appController.updateGroupsDebounce();
+    ref.read(proxiesActionProvider.notifier).updateGroupsDebounce();
     if (messages.isNotEmpty) {
-      globalState.showMessage(
-        title: appLocalizations.tip,
-        message: TextSpan(
-          children: [
-            for (final message in messages)
-              TextSpan(text: message, style: titleMedium),
-          ],
-        ),
-      );
+      globalState.showAllUpdatingMessagesDialog(messages);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     final providers = ref.watch(providersProvider);
     final proxyProviders = providers
         .where((item) => item.type == 'Proxy')
@@ -72,15 +60,7 @@ class _ProvidersViewState extends ConsumerState<ProvidersView> {
       items: ruleProviders,
     );
     return AdaptiveSheetScaffold(
-      actions: [
-        IconButton(
-          onPressed: () {
-            _updateProviders();
-          },
-          icon: const Icon(Icons.sync),
-        ),
-      ],
-      type: widget.type,
+      actions: [IconButtonData(icon: Icons.sync, onPressed: _updateProviders)],
       body: generateListView([...proxySection, ...ruleSection]),
       title: appLocalizations.providers,
     );
@@ -93,48 +73,44 @@ class ProviderItem extends StatelessWidget {
   const ProviderItem({super.key, required this.provider});
 
   Future<void> _handleUpdateProvider() async {
-    final appController = globalState.appController;
     if (provider.vehicleType != 'HTTP') return;
-    await globalState.appController.safeRun(() async {
-      appController.setProvider(provider.copyWith(isUpdating: true));
-      final message = await coreController.updateExternalProvider(
-        providerName: provider.name,
-      );
+    final ref = globalState.container;
+    await globalState.safeRun(() async {
+      final message = await ref
+          .read(proxiesActionProvider.notifier)
+          .updateProvider(provider);
       if (message.isNotEmpty) throw message;
     }, silence: false);
-    appController.setProvider(
-      await coreController.getExternalProvider(provider.name),
-    );
-    globalState.appController.updateGroupsDebounce();
+    ref.read(proxiesActionProvider.notifier).updateGroupsDebounce();
   }
 
   Future<void> _handleSideLoadProvider() async {
-    await globalState.appController.safeRun<void>(() async {
+    final ref = globalState.container;
+    await globalState.safeRun<void>(() async {
       final platformFile = await picker.pickerFile();
       final bytes = platformFile?.bytes;
       if (bytes == null || provider.path == null) return;
-      final file = await File(provider.path!).create(recursive: true);
-      await file.writeAsBytes(bytes);
+      await File(provider.path!).safeWriteAsBytes(bytes);
       final providerName = provider.name;
-      var message = await coreController.sideLoadExternalProvider(
+      final message = await coreController.sideLoadExternalProvider(
         providerName: providerName,
         data: utf8.decode(bytes),
       );
       if (message.isNotEmpty) throw message;
-      globalState.appController.setProvider(
-        await coreController.getExternalProvider(provider.name),
-      );
+      ref
+          .read(providersProvider.notifier)
+          .setProvider(await coreController.getExternalProvider(provider.name));
       if (message.isNotEmpty) throw message;
     });
-    globalState.appController.updateGroupsDebounce();
+    ref.read(proxiesActionProvider.notifier).updateGroupsDebounce();
   }
 
-  String _buildProviderDesc() {
-    final baseInfo = provider.updateAt.lastUpdateTimeDesc;
+  String _buildProviderDesc(BuildContext context) {
+    final baseInfo = provider.updateAt.getLastUpdateTimeDesc(context);
     final count = provider.count;
     return switch (count == 0) {
       true => baseInfo,
-      false => '$baseInfo  ·  $count${appLocalizations.entries}',
+      false => '$baseInfo  ·  $count${context.appLocalizations.entries}',
     };
   }
 
@@ -148,7 +124,7 @@ class ProviderItem extends StatelessWidget {
         children: [
           const SizedBox(height: 4),
           if (provider.updateAt.microsecondsSinceEpoch > 0)
-            Text(_buildProviderDesc()),
+            Text(_buildProviderDesc(context)),
           const SizedBox(height: 4),
           if (provider.subscriptionInfo != null)
             SubscriptionInfoView(subscriptionInfo: provider.subscriptionInfo),
@@ -160,24 +136,31 @@ class ProviderItem extends StatelessWidget {
             children: [
               CommonChip(
                 avatar: const Icon(Icons.upload),
-                label: appLocalizations.upload,
+                label: context.appLocalizations.upload,
                 onPressed: _handleSideLoadProvider,
               ),
               if (provider.vehicleType == 'HTTP')
-                provider.isUpdating
-                    ? SizedBox(
-                        height: 30,
-                        width: 30,
-                        child: const Padding(
-                          padding: EdgeInsets.all(2),
-                          child: CircularProgressIndicator(),
-                        ),
-                      )
-                    : CommonChip(
-                        avatar: const Icon(Icons.sync),
-                        label: appLocalizations.sync,
-                        onPressed: _handleUpdateProvider,
-                      ),
+                Consumer(
+                  builder: (_, ref, _) {
+                    final isUpdating = ref.watch(
+                      isUpdatingProvider(provider.updatingKey),
+                    );
+                    return isUpdating
+                        ? const SizedBox(
+                            height: 30,
+                            width: 30,
+                            child: Padding(
+                              padding: EdgeInsets.all(2),
+                              child: CircularProgressIndicator(),
+                            ),
+                          )
+                        : CommonChip(
+                            avatar: const Icon(Icons.sync),
+                            label: context.appLocalizations.sync,
+                            onPressed: _handleUpdateProvider,
+                          );
+                  },
+                ),
             ],
           ),
           const SizedBox(height: 4),

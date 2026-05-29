@@ -2,6 +2,7 @@ import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/core/core.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
+import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/providers/app.dart';
 import 'package:fl_clash/providers/config.dart';
 import 'package:fl_clash/providers/state.dart';
@@ -29,14 +30,16 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   void initState() {
     super.initState();
     coreEventManager.addListener(this);
-    ref.listenManual(needSetupProvider, (prev, next) {
+    ref.listenManual(currentProfileIdProvider, (prev, next) {
       if (prev != next) {
-        globalState.appController.handleChangeProfile();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(setupActionProvider.notifier).fullSetup();
+        });
       }
     });
     ref.listenManual(updateParamsProvider, (prev, next) {
       if (prev != next) {
-        globalState.appController.updateClashConfigDebounce();
+        ref.read(setupActionProvider.notifier).updateConfigDebounce();
       }
     });
     ref.listenManual(appSettingProvider.select((state) => state.openLogs), (
@@ -60,16 +63,16 @@ class _CoreContainerState extends ConsumerState<CoreManager>
   @override
   Future<void> onDelay(Delay delay) async {
     super.onDelay(delay);
-    final appController = globalState.appController;
-    appController.setDelay(delay);
+    final proxiesAction = ref.read(proxiesActionProvider.notifier);
+    proxiesAction.setDelay(delay);
     debouncer.call(FunctionTag.updateDelay, () async {
-      appController.updateGroupsDebounce();
+      proxiesAction.updateGroupsDebounce();
     }, duration: const Duration(milliseconds: 5000));
   }
 
   @override
   void onLog(Log log) {
-    ref.read(logsProvider.notifier).addLog(log);
+    // ref.read(logsProvider.notifier).add(log);
     if (log.logLevel == LogLevel.error) {
       globalState.showNotifier(log.payload);
     }
@@ -84,25 +87,26 @@ class _CoreContainerState extends ConsumerState<CoreManager>
 
   @override
   Future<void> onLoaded(String providerName) async {
+    final ref = globalState.container;
     ref
         .read(providersProvider.notifier)
         .setProvider(await coreController.getExternalProvider(providerName));
-    globalState.appController.updateGroupsDebounce();
+    debouncer.call(FunctionTag.loadedProvider, () async {
+      ref.read(proxiesActionProvider.notifier).updateGroupsDebounce();
+    }, duration: const Duration(milliseconds: 5000));
     super.onLoaded(providerName);
   }
 
   @override
   Future<void> onCrash(String message) async {
-    if (!globalState.isUserDisconnected &&
-        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-      context.showNotifier(message);
-    }
-    globalState.isUserDisconnected = false;
     if (ref.read(coreStatusProvider) != CoreStatus.connected) {
       return;
     }
     ref.read(coreStatusProvider.notifier).value = CoreStatus.disconnected;
-    await coreController.shutdown();
+    if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      context.showNotifier(message);
+    }
+    await coreController.shutdown(false);
     super.onCrash(message);
   }
 }

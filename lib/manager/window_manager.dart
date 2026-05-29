@@ -44,7 +44,7 @@ class _WindowContainerState extends ConsumerState<WindowManager>
 
   @override
   void onWindowClose() async {
-    await globalState.appController.handleBackOrExit();
+    await ref.read(systemActionProvider.notifier).handleBackOrExit();
     super.onWindowClose();
   }
 
@@ -57,19 +57,18 @@ class _WindowContainerState extends ConsumerState<WindowManager>
 
   @override
   Future<void> onShouldTerminate() async {
-    await globalState.appController.handleExit();
+    await ref.read(systemActionProvider.notifier).handleExit();
     super.onShouldTerminate();
   }
 
   @override
-  Future<void> onWindowMoved() async {
+  void onWindowMoved() {
     super.onWindowMoved();
-    final offset = await windowManager.getPosition();
-    ref
-        .read(windowSettingProvider.notifier)
-        .updateState(
-          (state) => state.copyWith(top: offset.dy, left: offset.dx),
-        );
+    windowManager.getPosition().then((offset) {
+      ref
+          .read(windowSettingProvider.notifier)
+          .update((state) => state.copyWith(top: offset.dy, left: offset.dx));
+    });
   }
 
   @override
@@ -78,14 +77,14 @@ class _WindowContainerState extends ConsumerState<WindowManager>
     final size = await windowManager.getSize();
     ref
         .read(windowSettingProvider.notifier)
-        .updateState(
+        .update(
           (state) => state.copyWith(width: size.width, height: size.height),
         );
   }
 
   @override
   void onWindowMinimize() async {
-    globalState.appController.savePreferencesDebounce();
+    ref.read(storeActionProvider.notifier).savePreferencesDebounce();
     commonPrint.log('minimize');
     render?.pause();
     super.onWindowMinimize();
@@ -168,13 +167,16 @@ class _WindowHeaderState extends State<WindowHeader> {
 
   Future<void> _updateMaximized() async {
     final isMaximized = await windowManager.isMaximized();
-    switch (isMaximized) {
-      case true:
-        await windowManager.unmaximize();
-        break;
-      case false:
-        await windowManager.maximize();
-        break;
+    if (isMaximized) {
+      await windowManager.unmaximize();
+      if (system.isWindows) {
+        windowExtManager.setWindowCornerPreference(round: true);
+      }
+    } else {
+      await windowManager.maximize();
+      if (system.isWindows) {
+        windowExtManager.setWindowCornerPreference(round: false);
+      }
     }
     isMaximizedNotifier.value = await windowManager.isMaximized();
   }
@@ -222,7 +224,9 @@ class _WindowHeaderState extends State<WindowHeader> {
         ),
         IconButton(
           onPressed: () {
-            globalState.appController.handleBackOrExit();
+            globalState.container
+                .read(systemActionProvider.notifier)
+                .handleBackOrExit();
           },
           icon: const Icon(Icons.close),
         ),
@@ -277,9 +281,9 @@ class AppIcon extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
         ),
       ),
-      padding: EdgeInsets.all(8),
+      padding: const EdgeInsets.all(8),
       child: Transform.translate(
-        offset: Offset(0, -1),
+        offset: const Offset(0, -1),
         child: Image.asset('assets/images/icon.png', width: 34, height: 34),
       ),
     );

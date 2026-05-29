@@ -21,7 +21,7 @@ class _StartButtonState extends ConsumerState<StartButton>
   @override
   void initState() {
     super.initState();
-    isStart = globalState.appState.runTime != null;
+    isStart = ref.read(isStartProvider);
     _controller = AnimationController(
       vsync: this,
       value: isStart ? 1 : 0,
@@ -31,10 +31,7 @@ class _StartButtonState extends ConsumerState<StartButton>
       parent: _controller!,
       curve: Curves.easeOutBack,
     );
-    ref.listenManual(runTimeProvider.select((state) => state != null), (
-      prev,
-      next,
-    ) {
+    ref.listenManual(isStartProvider, (prev, next) {
       if (next != isStart) {
         isStart = next;
         updateController();
@@ -53,7 +50,9 @@ class _StartButtonState extends ConsumerState<StartButton>
     isStart = !isStart;
     updateController();
     debouncer.call(FunctionTag.updateStatus, () {
-      globalState.appController.updateStatus(isStart);
+      globalState.container
+          .read(setupActionProvider.notifier)
+          .updateStatus(isStart, isInit: !ref.read(initProvider));
     }, duration: commonDuration);
   }
 
@@ -69,66 +68,95 @@ class _StartButtonState extends ConsumerState<StartButton>
 
   @override
   Widget build(BuildContext context) {
-    final state = ref.watch(startButtonSelectorStateProvider);
-    if (!state.isInit || !state.hasProfile) {
+    final hasProfile = ref.watch(
+      profilesProvider.select((state) => state.isNotEmpty),
+    );
+    if (!hasProfile) {
       return Container();
     }
-    return Theme(
-      data: Theme.of(context).copyWith(
-        floatingActionButtonTheme: Theme.of(context).floatingActionButtonTheme
-            .copyWith(
-              sizeConstraints: BoxConstraints(minWidth: 56, maxWidth: 200),
-            ),
-      ),
-      child: AnimatedBuilder(
-        animation: _controller!.view,
-        builder: (_, child) {
-          final textWidth =
-              globalState.measure
-                  .computeTextSize(
-                    Text(
-                      utils.getTimeDifference(DateTime.now()),
-                      style: context.textTheme.titleMedium?.toSoftBold,
+    final suspend = ref.watch(suspendProvider);
+    final theme = Theme.of(context);
+    final appLocalizations = context.appLocalizations;
+    return RepaintBoundary(
+      child: Theme(
+        data: theme.copyWith(
+          floatingActionButtonTheme: theme.floatingActionButtonTheme.copyWith(
+            sizeConstraints: const BoxConstraints(minWidth: 56, maxWidth: 200),
+          ),
+        ),
+        child: AnimatedBuilder(
+          animation: _controller!.view,
+          builder: (_, child) {
+            final textWidth = suspend
+                ? globalState.measure
+                          .computeTextSize(
+                            Text(
+                              appLocalizations.suspended,
+                              style: context.textTheme.titleMedium,
+                            ),
+                          )
+                          .width +
+                      24
+                : globalState.measure
+                          .computeTextSize(
+                            Text(
+                              utils.getTimeDifference(DateTime.now()),
+                              style: context.textTheme.titleMedium?.toSoftBold,
+                            ),
+                          )
+                          .width +
+                      16;
+            return FloatingActionButton(
+              clipBehavior: Clip.antiAlias,
+              materialTapTargetSize: MaterialTapTargetSize.padded,
+              heroTag: null,
+              onPressed: () {
+                handleSwitchStart();
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    height: 56,
+                    padding: EdgeInsets.only(
+                      left: 16,
+                      right: 16 - 8 * _animation.value,
                     ),
-                  )
-                  .width +
-              16;
-          return FloatingActionButton(
-            clipBehavior: Clip.antiAlias,
-            materialTapTargetSize: MaterialTapTargetSize.padded,
-            heroTag: null,
-            onPressed: () {
-              handleSwitchStart();
-            },
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  height: 56,
-                  width: 56,
-                  alignment: Alignment.center,
-                  child: AnimatedIcon(
-                    icon: AnimatedIcons.play_pause,
-                    progress: _animation,
+                    alignment: Alignment.centerLeft,
+                    child: AnimatedIcon(
+                      icon: AnimatedIcons.play_pause,
+                      progress: _animation,
+                    ),
                   ),
-                ),
-                SizedBox(width: textWidth * _animation.value, child: child!),
-              ],
-            ),
-          );
-        },
-        child: Consumer(
-          builder: (_, ref, _) {
-            final runTime = ref.watch(runTimeProvider);
-            final text = utils.getTimeText(runTime);
-            return Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.visible,
-              style: Theme.of(context).textTheme.titleMedium?.toSoftBold
-                  .copyWith(color: context.colorScheme.onPrimaryContainer),
+                  SizedBox(width: textWidth * _animation.value, child: child!),
+                ],
+              ),
             );
           },
+          child: suspend
+              ? Text(
+                  appLocalizations.suspended,
+                  maxLines: 1,
+                  overflow: TextOverflow.visible,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: context.colorScheme.onPrimaryContainer,
+                  ),
+                )
+              : Consumer(
+                  builder: (_, ref, _) {
+                    final runTime = ref.watch(runTimeProvider);
+                    final text = utils.getTimeText(runTime);
+                    return Text(
+                      text,
+                      maxLines: 1,
+                      overflow: TextOverflow.visible,
+                      style: Theme.of(context).textTheme.titleMedium?.toSoftBold
+                          .copyWith(
+                            color: context.colorScheme.onPrimaryContainer,
+                          ),
+                    );
+                  },
+                ),
         ),
       ),
     );

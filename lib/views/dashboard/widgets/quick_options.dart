@@ -10,25 +10,29 @@ class TUNButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     return SizedBox(
       height: getWidgetHeight(1),
       child: CommonCard(
         onPressed: () {
           showSheet(
             context: context,
-            builder: (_, type) {
-              return AdaptiveSheetScaffold(
-                type: type,
-                body: generateListView(
-                  generateSection(
-                    items: [
-                      if (system.isDesktop) const TUNItem(),
-                      if (system.isMacOS) const AutoSetSystemDnsItem(),
-                      const TunStackItem(),
-                    ],
-                  ),
-                ),
-                title: appLocalizations.tun,
+            builder: (_) {
+              return Builder(
+                builder: (context) {
+                  return AdaptiveSheetScaffold(
+                    body: generateListView(
+                      generateSection(
+                        items: [
+                          if (system.isDesktop) const TUNItem(),
+                          if (system.isMacOS) const AutoSetSystemDnsItem(),
+                          const TunStackItem(),
+                        ],
+                      ),
+                    ),
+                    title: appLocalizations.tun,
+                  );
+                },
               );
             },
           );
@@ -68,9 +72,7 @@ class TUNButton extends StatelessWidget {
                     onChanged: (value) {
                       ref
                           .read(patchClashConfigProvider.notifier)
-                          .updateState(
-                            (state) => state.copyWith.tun(enable: value),
-                          );
+                          .update((state) => state.copyWith.tun(enable: value));
                     },
                   );
                 },
@@ -88,18 +90,18 @@ class SystemProxyButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     return SizedBox(
       height: getWidgetHeight(1),
       child: CommonCard(
         onPressed: () {
           showSheet(
             context: context,
-            builder: (_, type) {
+            builder: (_) {
               return AdaptiveSheetScaffold(
-                type: type,
                 body: generateListView(
                   generateSection(
-                    items: [SystemProxyItem(), BypassDomainItem()],
+                    items: [const SystemProxyItem(), const BypassDomainItem()],
                   ),
                 ),
                 title: appLocalizations.systemProxy,
@@ -141,7 +143,7 @@ class SystemProxyButton extends StatelessWidget {
                     onChanged: (value) {
                       ref
                           .read(networkSettingProvider.notifier)
-                          .updateState(
+                          .update(
                             (state) => state.copyWith(systemProxy: value),
                           );
                     },
@@ -161,15 +163,15 @@ class VpnButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     return SizedBox(
       height: getWidgetHeight(1),
       child: CommonCard(
         onPressed: () {
           showSheet(
             context: context,
-            builder: (_, type) {
+            builder: (_) {
               return AdaptiveSheetScaffold(
-                type: type,
                 body: generateListView(
                   generateSection(
                     items: [
@@ -184,7 +186,7 @@ class VpnButton extends StatelessWidget {
             },
           );
         },
-        info: Info(label: 'VPN', iconData: Icons.stacked_line_chart),
+        info: const Info(label: 'VPN', iconData: Icons.stacked_line_chart),
         child: Container(
           padding: baseInfoEdgeInsets.copyWith(top: 4, bottom: 8, right: 8),
           child: Row(
@@ -214,9 +216,7 @@ class VpnButton extends StatelessWidget {
                     onChanged: (value) {
                       ref
                           .read(vpnSettingProvider.notifier)
-                          .updateState(
-                            (state) => state.copyWith(enable: value),
-                          );
+                          .update((state) => state.copyWith(enable: value));
                     },
                   );
                 },

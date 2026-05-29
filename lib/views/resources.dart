@@ -36,7 +36,7 @@ class ResourcesView extends StatelessWidget {
     ];
 
     return CommonScaffold(
-      title: appLocalizations.resources,
+      title: context.appLocalizations.resources,
       body: ListView.separated(
         itemBuilder: (_, index) {
           final geoItem = geoItems[index];
@@ -79,7 +79,7 @@ class _GeoDataListItemState extends State<GeoDataListItem> {
         if (!newUrl.isUrl) {
           throw 'Invalid url';
         }
-        ref.read(patchClashConfigProvider.notifier).updateState((state) {
+        ref.read(patchClashConfigProvider.notifier).update((state) {
           final map = state.geoXUrl.toJson();
           map[geoItem.key] = newUrl;
           return state.copyWith(geoXUrl: GeoXUrl.fromJson(map));
@@ -103,14 +103,15 @@ class _GeoDataListItemState extends State<GeoDataListItem> {
 
   Widget _buildSubtitle() {
     return Consumer(
-      builder: (_, ref, _) {
+      builder: (context, ref, _) {
+        final appLocalizations = context.appLocalizations;
         final url = ref.watch(
           patchClashConfigProvider.select(
             (state) => state.geoXUrl.toJson()[geoItem.key],
           ),
         );
         if (url == null) {
-          return SizedBox();
+          return const SizedBox();
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -125,7 +126,7 @@ class _GeoDataListItemState extends State<GeoDataListItem> {
                   child: snapshot.data == null
                       ? SizedBox(width: height, height: height)
                       : Text(
-                          snapshot.data!.desc,
+                          snapshot.data!.getDesc(context),
                           style: context.textTheme.bodyMedium,
                         ),
                 );
@@ -154,10 +155,10 @@ class _GeoDataListItemState extends State<GeoDataListItem> {
                         valueListenable: isUpdating,
                         builder: (_, isUpdating, _) {
                           return isUpdating
-                              ? SizedBox(
+                              ? const SizedBox(
                                   height: 30,
                                   width: 30,
-                                  child: const Padding(
+                                  child: Padding(
                                     padding: EdgeInsets.all(2),
                                     child: CircularProgressIndicator(),
                                   ),
@@ -184,13 +185,9 @@ class _GeoDataListItemState extends State<GeoDataListItem> {
   }
 
   Future<void> _handleUpdateGeoDataItem() async {
-    await globalState.appController.safeRun<void>(
-      () async {
-        await updateGeoDateItem();
-      },
-      silence: false,
-      needLoading: false,
-    );
+    await globalState.safeRun<void>(() async {
+      await updateGeoDateItem();
+    }, silence: false);
     if (mounted) {
       setState(() {});
     }
@@ -244,12 +241,12 @@ class UpdateGeoUrlFormDialog extends StatefulWidget {
 }
 
 class _UpdateGeoUrlFormDialogState extends State<UpdateGeoUrlFormDialog> {
-  late TextEditingController urlController;
+  late final TextEditingController _urlController;
 
   @override
   void initState() {
     super.initState();
-    urlController = TextEditingController(text: widget.url);
+    _urlController = TextEditingController(text: widget.url);
   }
 
   Future<void> _handleReset() async {
@@ -260,18 +257,25 @@ class _UpdateGeoUrlFormDialogState extends State<UpdateGeoUrlFormDialog> {
   }
 
   Future<void> _handleUpdate() async {
-    final url = urlController.value.text;
+    final url = _urlController.value.text;
     if (url.isEmpty) return;
     Navigator.of(context).pop<String>(url);
   }
 
   @override
+  void dispose() {
+    _urlController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     return CommonDialog(
       title: widget.title,
       actions: [
         if (widget.defaultValue != null &&
-            urlController.value.text != widget.defaultValue) ...[
+            _urlController.value.text != widget.defaultValue) ...[
           TextButton(
             onPressed: _handleReset,
             child: Text(appLocalizations.reset),
@@ -289,7 +293,7 @@ class _UpdateGeoUrlFormDialogState extends State<UpdateGeoUrlFormDialog> {
           TextField(
             maxLines: 5,
             minLines: 1,
-            controller: urlController,
+            controller: _urlController,
             decoration: const InputDecoration(border: OutlineInputBorder()),
           ),
         ],

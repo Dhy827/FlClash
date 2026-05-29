@@ -1,6 +1,6 @@
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/providers/action.dart';
 import 'package:fl_clash/providers/state.dart';
-import 'package:fl_clash/state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tray_manager/tray_manager.dart';
@@ -8,10 +8,7 @@ import 'package:tray_manager/tray_manager.dart';
 class TrayManager extends ConsumerStatefulWidget {
   final Widget child;
 
-  const TrayManager({
-    super.key,
-    required this.child,
-  });
+  const TrayManager({super.key, required this.child});
 
   @override
   ConsumerState<TrayManager> createState() => _TrayContainerState();
@@ -22,14 +19,21 @@ class _TrayContainerState extends ConsumerState<TrayManager> with TrayListener {
   void initState() {
     super.initState();
     trayManager.addListener(this);
-    ref.listenManual(
-      trayStateProvider,
-      (prev, next) {
+    ref.listenManual(trayStateProvider, (prev, next) {
+      if (prev != next) {
+        ref.read(systemActionProvider.notifier).updateTray();
+      }
+    });
+    if (system.isMacOS) {
+      ref.listenManual(trayTitleStateProvider, (prev, next) {
         if (prev != next) {
-          globalState.appController.updateTray();
+          tray?.updateTrayTitle(
+            showTrayTitle: next.showTrayTitle,
+            traffic: next.traffic,
+          );
         }
-      },
-    );
+      });
+    }
   }
 
   @override
@@ -50,12 +54,12 @@ class _TrayContainerState extends ConsumerState<TrayManager> with TrayListener {
   }
 
   @override
-  onTrayIconMouseDown() {
+  void onTrayIconMouseDown() {
     window?.show();
   }
 
   @override
-  dispose() {
+  void dispose() {
     trayManager.removeListener(this);
     super.dispose();
   }

@@ -1,4 +1,6 @@
-import 'package:fl_clash/common/app_localizations.dart';
+import 'package:flutter/cupertino.dart';
+
+import 'context.dart';
 
 extension DateTimeExtension on DateTime {
   bool get isBeforeNow {
@@ -12,28 +14,31 @@ extension DateTimeExtension on DateTime {
     return true;
   }
 
-  String get lastUpdateTimeDesc {
+  String getLastUpdateTimeDesc(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     final currentDateTime = DateTime.now();
     final difference = currentDateTime.difference(this);
     final days = difference.inDays;
     if (days >= 365) {
-      return '${(days / 365).floor()} ${appLocalizations.years}${appLocalizations.ago}';
+      final years = (days / 365).floor();
+      return appLocalizations.yearsAgo(years);
     }
     if (days >= 30) {
-      return '${(days / 30).floor()} ${appLocalizations.months}${appLocalizations.ago}';
+      final months = (days / 30).floor();
+      return appLocalizations.monthsAgo(months);
     }
     if (days >= 1) {
-      return '$days ${appLocalizations.days}${appLocalizations.ago}';
+      return appLocalizations.daysAgo(days);
     }
     final hours = difference.inHours;
     if (hours >= 1) {
-      return '$hours ${appLocalizations.hours}${appLocalizations.ago}';
+      return appLocalizations.hoursAgo(hours);
     }
     final minutes = difference.inMinutes;
     if (minutes >= 1) {
-      return '$minutes ${appLocalizations.minutes}${appLocalizations.ago}';
+      return appLocalizations.minutesAgo(minutes);
     }
-    return appLocalizations.just;
+    return appLocalizations.justNow;
   }
 
   String get show {

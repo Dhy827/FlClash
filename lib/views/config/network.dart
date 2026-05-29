@@ -1,8 +1,6 @@
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/enum/enum.dart';
-import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/providers/config.dart';
-import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +11,7 @@ class VPNItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final enable = ref.watch(
       vpnSettingProvider.select((state) => state.enable),
     );
@@ -24,7 +23,7 @@ class VPNItem extends ConsumerWidget {
         onChanged: (value) async {
           ref
               .read(vpnSettingProvider.notifier)
-              .updateState((state) => state.copyWith(enable: value));
+              .update((state) => state.copyWith(enable: value));
         },
       ),
     );
@@ -36,6 +35,7 @@ class TUNItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final enable = ref.watch(
       patchClashConfigProvider.select((state) => state.tun.enable),
     );
@@ -48,7 +48,7 @@ class TUNItem extends ConsumerWidget {
         onChanged: (value) async {
           ref
               .read(patchClashConfigProvider.notifier)
-              .updateState((state) => state.copyWith.tun(enable: value));
+              .update((state) => state.copyWith.tun(enable: value));
         },
       ),
     );
@@ -60,6 +60,7 @@ class AllowBypassItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final allowBypass = ref.watch(
       vpnSettingProvider.select((state) => state.allowBypass),
     );
@@ -71,7 +72,7 @@ class AllowBypassItem extends ConsumerWidget {
         onChanged: (bool value) async {
           ref
               .read(vpnSettingProvider.notifier)
-              .updateState((state) => state.copyWith(allowBypass: value));
+              .update((state) => state.copyWith(allowBypass: value));
         },
       ),
     );
@@ -83,6 +84,7 @@ class VpnSystemProxyItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final systemProxy = ref.watch(
       vpnSettingProvider.select((state) => state.systemProxy),
     );
@@ -94,7 +96,7 @@ class VpnSystemProxyItem extends ConsumerWidget {
         onChanged: (bool value) async {
           ref
               .read(vpnSettingProvider.notifier)
-              .updateState((state) => state.copyWith(systemProxy: value));
+              .update((state) => state.copyWith(systemProxy: value));
         },
       ),
     );
@@ -106,6 +108,7 @@ class SystemProxyItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final systemProxy = ref.watch(
       networkSettingProvider.select((state) => state.systemProxy),
     );
@@ -118,7 +121,7 @@ class SystemProxyItem extends ConsumerWidget {
         onChanged: (bool value) async {
           ref
               .read(networkSettingProvider.notifier)
-              .updateState((state) => state.copyWith(systemProxy: value));
+              .update((state) => state.copyWith(systemProxy: value));
         },
       ),
     );
@@ -130,6 +133,7 @@ class Ipv6Item extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final ipv6 = ref.watch(vpnSettingProvider.select((state) => state.ipv6));
     return ListItem.switchItem(
       title: const Text('IPv6'),
@@ -139,7 +143,7 @@ class Ipv6Item extends ConsumerWidget {
         onChanged: (bool value) async {
           ref
               .read(vpnSettingProvider.notifier)
-              .updateState((state) => state.copyWith(ipv6: value));
+              .update((state) => state.copyWith(ipv6: value));
         },
       ),
     );
@@ -151,6 +155,7 @@ class AutoSetSystemDnsItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final autoSetSystemDns = ref.watch(
       networkSettingProvider.select((state) => state.autoSetSystemDns),
     );
@@ -161,7 +166,7 @@ class AutoSetSystemDnsItem extends ConsumerWidget {
         onChanged: (bool value) async {
           ref
               .read(networkSettingProvider.notifier)
-              .updateState((state) => state.copyWith(autoSetSystemDns: value));
+              .update((state) => state.copyWith(autoSetSystemDns: value));
         },
       ),
     );
@@ -173,6 +178,7 @@ class TunStackItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final stack = ref.watch(
       patchClashConfigProvider.select((state) => state.tun.stack),
     );
@@ -190,7 +196,7 @@ class TunStackItem extends ConsumerWidget {
           }
           ref
               .read(patchClashConfigProvider.notifier)
-              .updateState((state) => state.copyWith.tun(stack: value));
+              .update((state) => state.copyWith.tun(stack: value));
         },
         title: appLocalizations.stackMode,
       ),
@@ -198,61 +204,32 @@ class TunStackItem extends ConsumerWidget {
   }
 }
 
-class BypassDomainItem extends StatelessWidget {
+class BypassDomainItem extends ConsumerWidget {
   const BypassDomainItem({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
+    final bypassDomain = ref.watch(
+      networkSettingProvider.select((state) => state.bypassDomain),
+    );
     return ListItem.open(
       title: Text(appLocalizations.bypassDomain),
       subtitle: Text(appLocalizations.bypassDomainDesc),
       delegate: OpenDelegate(
         blur: false,
-        actions: [
-          Consumer(
-            builder: (_, ref, _) {
-              return IconButton(
-                onPressed: () async {
-                  final res = await globalState.showMessage(
-                    title: appLocalizations.reset,
-                    message: TextSpan(text: appLocalizations.resetTip),
-                  );
-                  if (res != true) {
-                    return;
-                  }
-                  ref
-                      .read(networkSettingProvider.notifier)
-                      .updateState(
-                        (state) =>
-                            state.copyWith(bypassDomain: defaultBypassDomain),
-                      );
-                },
-                tooltip: appLocalizations.reset,
-                icon: const Icon(Icons.replay),
-              );
-            },
-          ),
-        ],
-        title: appLocalizations.bypassDomain,
-        widget: Consumer(
-          builder: (_, ref, _) {
-            final bypassDomain = ref.watch(
-              networkSettingProvider.select((state) => state.bypassDomain),
-            );
-            return ListInputPage(
-              title: appLocalizations.bypassDomain,
-              items: bypassDomain,
-              titleBuilder: (item) => Text(item),
-              onChange: (items) {
-                ref
-                    .read(networkSettingProvider.notifier)
-                    .updateState(
-                      (state) => state.copyWith(bypassDomain: List.from(items)),
-                    );
-              },
-            );
-          },
+        widget: ListInputPage(
+          title: appLocalizations.bypassDomain,
+          items: bypassDomain,
+          titleBuilder: (item) => Text(item),
         ),
+        onChanged: (items) {
+          ref
+              .read(networkSettingProvider.notifier)
+              .update(
+                (state) => state.copyWith(bypassDomain: List.from(items)),
+              );
+        },
       ),
     );
   }
@@ -263,6 +240,7 @@ class DNSHijackingItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final dnsHijacking = ref.watch(
       vpnSettingProvider.select((state) => state.dnsHijacking),
     );
@@ -273,7 +251,7 @@ class DNSHijackingItem extends ConsumerWidget {
         onChanged: (value) async {
           ref
               .read(vpnSettingProvider.notifier)
-              .updateState((state) => state.copyWith(dnsHijacking: value));
+              .update((state) => state.copyWith(dnsHijacking: value));
         },
       ),
     );
@@ -285,6 +263,7 @@ class RouteModeItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final routeMode = ref.watch(
       networkSettingProvider.select((state) => state.routeMode),
     );
@@ -300,7 +279,7 @@ class RouteModeItem extends ConsumerWidget {
           }
           ref
               .read(networkSettingProvider.notifier)
-              .updateState((state) => state.copyWith(routeMode: value));
+              .update((state) => state.copyWith(routeMode: value));
         },
         textBuilder: (routeMode) => Intl.message('routeMode_${routeMode.name}'),
         value: routeMode,
@@ -314,6 +293,7 @@ class RouteAddressItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, ref) {
+    final appLocalizations = context.appLocalizations;
     final bypassPrivate = ref.watch(
       networkSettingProvider.select(
         (state) => state.routeMode == RouteMode.bypassPrivate,
@@ -322,77 +302,68 @@ class RouteAddressItem extends ConsumerWidget {
     if (bypassPrivate) {
       return Container();
     }
+    final routeAddress = ref.watch(
+      patchClashConfigProvider.select((state) => state.tun.routeAddress),
+    );
     return ListItem.open(
       title: Text(appLocalizations.routeAddress),
       subtitle: Text(appLocalizations.routeAddressDesc),
       delegate: OpenDelegate(
         blur: false,
         maxWidth: 360,
-        title: appLocalizations.routeAddress,
-        widget: Consumer(
-          builder: (_, ref, _) {
-            final routeAddress = ref.watch(
-              patchClashConfigProvider.select(
-                (state) => state.tun.routeAddress,
-              ),
-            );
-            return ListInputPage(
-              title: appLocalizations.routeAddress,
-              items: routeAddress,
-              titleBuilder: (item) => Text(item),
-              onChange: (items) {
-                ref
-                    .read(patchClashConfigProvider.notifier)
-                    .updateState(
-                      (state) =>
-                          state.copyWith.tun(routeAddress: List.from(items)),
-                    );
-              },
-            );
-          },
+        widget: ListInputPage(
+          title: appLocalizations.routeAddress,
+          items: routeAddress,
+          titleBuilder: (item) => Text(item),
         ),
+        onChanged: (items) {
+          ref
+              .read(patchClashConfigProvider.notifier)
+              .update(
+                (state) => state.copyWith.tun(routeAddress: List.from(items)),
+              );
+        },
       ),
     );
   }
 }
-
-final networkItems = [
-  if (system.isAndroid) const VPNItem(),
-  if (system.isAndroid)
-    ...generateSection(
-      title: 'VPN',
-      items: [
-        const VpnSystemProxyItem(),
-        const BypassDomainItem(),
-        const AllowBypassItem(),
-        const Ipv6Item(),
-        const DNSHijackingItem(),
-      ],
-    ),
-  if (system.isDesktop)
-    ...generateSection(
-      title: appLocalizations.system,
-      items: [SystemProxyItem(), BypassDomainItem()],
-    ),
-  ...generateSection(
-    title: appLocalizations.options,
-    items: [
-      if (system.isDesktop) const TUNItem(),
-      if (system.isMacOS) const AutoSetSystemDnsItem(),
-      const TunStackItem(),
-      if (!system.isDesktop) ...[
-        const RouteModeItem(),
-        const RouteAddressItem(),
-      ],
-    ],
-  ),
-];
 
 class NetworkListView extends StatelessWidget {
   const NetworkListView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return generateListView(networkItems);
+    final appLocalizations = context.appLocalizations;
+    return generateListView([
+      if (system.isAndroid) const VPNItem(),
+      if (system.isAndroid)
+        ...generateSection(
+          title: 'VPN',
+          items: [
+            const VpnSystemProxyItem(),
+            const BypassDomainItem(),
+            const AllowBypassItem(),
+            const Ipv6Item(),
+            const DNSHijackingItem(),
+          ],
+        ),
+      if (system.isDesktop)
+        ...generateSection(
+          title: appLocalizations.system,
+          items: [const SystemProxyItem(), const BypassDomainItem()],
+        ),
+      ...generateSection(
+        title: appLocalizations.options,
+        items: [
+          if (system.isDesktop) const TUNItem(),
+          if (system.isMacOS) const AutoSetSystemDnsItem(),
+          const TunStackItem(),
+          if (!system.isDesktop) ...[
+            const RouteModeItem(),
+            const RouteAddressItem(),
+          ],
+        ],
+      ),
+    ]);
   }
 }

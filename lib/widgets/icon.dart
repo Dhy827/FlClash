@@ -1,17 +1,20 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:fl_clash/common/cache.dart';
 import 'package:fl_clash/common/common.dart';
+import 'package:fl_clash/database/database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_svg/svg.dart';
 
 class CommonTargetIcon extends StatelessWidget {
   final String src;
-  final double size;
 
-  const CommonTargetIcon({super.key, required this.src, required this.size});
+  const CommonTargetIcon({super.key, required this.src});
 
   Widget _defaultIcon() {
-    return Icon(IconsExt.target, size: size);
+    return const Icon(IconsExt.target);
   }
 
   Widget _buildIcon() {
@@ -35,9 +38,11 @@ class CommonTargetIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(width: size, height: size, child: _buildIcon());
+    return _buildIcon();
   }
 }
+
+final _cacheMange = DefaultCacheManager();
 
 class ImageCacheWidget extends StatefulWidget {
   final String src;
@@ -54,30 +59,93 @@ class ImageCacheWidget extends StatefulWidget {
 }
 
 class _ImageCacheWidgetState extends State<ImageCacheWidget> {
-  late Future<File> _imageFuture;
+  final ValueNotifier<File?> _imageNotifier = ValueNotifier(null);
+  StreamSubscription? _streamSubscription;
 
   @override
   void initState() {
     super.initState();
-    _imageFuture = LocalImageCacheManager().getSingleFile(widget.src);
+    _getImageFormCache();
+  }
+
+  @override
+  void didUpdateWidget(covariant ImageCacheWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.src != widget.src) {
+      _getImageFormCache();
+    }
+  }
+
+  void _getImageFormCache() {
+    _imageNotifier.value = null;
+    final src = widget.src;
+    if (src.isEmpty) {
+      return;
+    }
+    _streamSubscription?.cancel();
+    _streamSubscription = _cacheMange
+        .getFileStreamV2(
+          src,
+          onRemoteNewLoaded: () {
+            commonPrint.log('The icon has been recorded: $src');
+            database.iconRecordsDao.putIfAbsent(src);
+          },
+        )
+        .listen((data) {
+          if (mounted) {
+            _imageNotifier.value = data.file;
+          }
+        });
+  }
+
+  @override
+  void dispose() {
+    _streamSubscription?.cancel();
+    _imageNotifier.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<File>(
-      future: _imageFuture,
-      builder: (context, snapshot) {
-        final data = snapshot.data;
+    return ValueListenableBuilder<File?>(
+      valueListenable: _imageNotifier,
+      builder: (_, data, _) {
         if (data == null) {
-          return SizedBox();
+          return widget.defaultWidget;
         }
-        return widget.src.isSvg
-            ? SvgPicture.file(
-                data,
-                errorBuilder: (_, _, _) => widget.defaultWidget,
-              )
-            : Image.file(data, errorBuilder: (_, _, _) => widget.defaultWidget);
+        return CommonImage(
+          data: data,
+          isSvg: widget.src.isSvg,
+          errorBuilder: (_, _, _) {
+            return widget.defaultWidget;
+          },
+        );
       },
     );
+  }
+}
+
+class CommonImage extends StatelessWidget {
+  final File data;
+  final bool isSvg;
+  final Widget Function(
+    BuildContext context,
+    Object error,
+    StackTrace? stackTrace,
+  )?
+  errorBuilder;
+
+  const CommonImage({
+    super.key,
+    required this.data,
+    this.errorBuilder,
+    this.isSvg = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return isSvg
+        ? SvgPicture.file(data, errorBuilder: errorBuilder)
+        : Image.file(data, errorBuilder: errorBuilder);
   }
 }

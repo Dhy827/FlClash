@@ -1,10 +1,9 @@
 import 'dart:io';
 
-import 'package:fl_clash/common/utils.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:fl_clash/models/models.dart';
+import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/state.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:tray_manager/tray_manager.dart';
@@ -15,41 +14,68 @@ import 'system.dart';
 import 'window.dart';
 
 class Tray {
+  static Tray? _instance;
+
+  Tray._internal();
+
+  factory Tray() {
+    _instance ??= Tray._internal();
+    return _instance!;
+  }
+
+  String get trayIconSuffix {
+    return system.isWindows ? 'ico' : 'png';
+  }
+
+  Future<void> destroy() async {
+    await trayManager.destroy();
+  }
+
+  String getTryIcon({required bool isStart, required bool tunEnable}) {
+    if (system.isMacOS || !isStart) {
+      return 'assets/images/icon/status_1.$trayIconSuffix';
+    }
+    if (!tunEnable) {
+      return 'assets/images/icon/status_2.$trayIconSuffix';
+    }
+    return 'assets/images/icon/status_3.$trayIconSuffix';
+  }
+
   Future _updateSystemTray({
-    required Brightness? brightness,
-    bool force = false,
+    required bool isStart,
+    required bool tunEnable,
   }) async {
-    if (Platform.isLinux || force) {
+    if (Platform.isLinux) {
       await trayManager.destroy();
     }
     await trayManager.setIcon(
-      utils.getTrayIconPath(
-        brightness: brightness ??
-            WidgetsBinding.instance.platformDispatcher.platformBrightness,
-      ),
-      isTemplate: true,
+      getTryIcon(isStart: isStart, tunEnable: tunEnable),
+      isTemplate: system.isMacOS,
     );
     if (!Platform.isLinux) {
-      await trayManager.setToolTip(
-        appName,
-      );
+      await trayManager.setToolTip(appName);
     }
   }
 
   Future<void> update({
     required TrayState trayState,
-    bool focus = false,
+    required Traffic traffic,
   }) async {
     if (system.isAndroid) {
       return;
     }
-    if (!Platform.isLinux) {
+    if (!system.isLinux) {
       await _updateSystemTray(
-        brightness: trayState.brightness,
-        force: focus,
+        isStart: trayState.isStart,
+        tunEnable: trayState.tunEnable,
       );
     }
-    List<MenuItem> menuItems = [];
+    final List<MenuItem> menuItems = [];
+    final ref = globalState.container;
+    final commonAction = ref.read(commonActionProvider.notifier);
+    final systemAction = ref.read(systemActionProvider.notifier);
+    final setupAction = ref.read(setupActionProvider.notifier);
+    final appLocalizations = currentAppLocalizations;
     final showMenuItem = MenuItem(
       label: appLocalizations.show,
       onClick: (_) {
@@ -60,18 +86,28 @@ class Tray {
     final startMenuItem = MenuItem.checkbox(
       label: trayState.isStart ? appLocalizations.stop : appLocalizations.start,
       onClick: (_) async {
-        globalState.appController.updateStart();
+        commonAction.updateStart();
       },
       checked: false,
     );
     menuItems.add(startMenuItem);
+    if (system.isMacOS) {
+      final speedStatistics = MenuItem.checkbox(
+        label: appLocalizations.speedStatistics,
+        onClick: (_) async {
+          commonAction.updateSpeedStatistics();
+        },
+        checked: trayState.showTrayTitle,
+      );
+      menuItems.add(speedStatistics);
+    }
     menuItems.add(MenuItem.separator());
     for (final mode in Mode.values) {
       menuItems.add(
         MenuItem.checkbox(
           label: Intl.message(mode.name),
           onClick: (_) {
-            globalState.appController.changeMode(mode);
+            setupAction.changeMode(mode);
           },
           checked: mode == trayState.mode,
         ),
@@ -80,22 +116,20 @@ class Tray {
     menuItems.add(MenuItem.separator());
     if (system.isMacOS) {
       for (final group in trayState.groups) {
-        List<MenuItem> subMenuItems = [];
+        final List<MenuItem> subMenuItems = [];
         for (final proxy in group.all) {
           subMenuItems.add(
             MenuItem.checkbox(
               label: proxy.name,
-              checked: trayState.selectedMap[group.name] == proxy.name,
+              checked:
+                  ref.read(selectedProxyNameProvider(group.name)) == proxy.name,
               onClick: (_) {
-                final appController = globalState.appController;
-                appController.updateCurrentSelectedMap(
-                  group.name,
-                  proxy.name,
-                );
-                appController.changeProxy(
-                  groupName: group.name,
-                  proxyName: proxy.name,
-                );
+                ref
+                    .read(profilesActionProvider.notifier)
+                    .updateCurrentSelectedMap(group.name, proxy.name);
+                ref
+                    .read(proxiesActionProvider.notifier)
+                    .changeProxy(groupName: group.name, proxyName: proxy.name);
               },
             ),
           );
@@ -103,9 +137,7 @@ class Tray {
         menuItems.add(
           MenuItem.submenu(
             label: group.name,
-            submenu: Menu(
-              items: subMenuItems,
-            ),
+            submenu: Menu(items: subMenuItems),
           ),
         );
       }
@@ -118,7 +150,7 @@ class Tray {
         MenuItem.checkbox(
           label: appLocalizations.tun,
           onClick: (_) {
-            globalState.appController.updateTun();
+            systemAction.updateTun();
           },
           checked: trayState.tunEnable,
         ),
@@ -127,7 +159,7 @@ class Tray {
         MenuItem.checkbox(
           label: appLocalizations.systemProxy,
           onClick: (_) {
-            globalState.appController.updateSystemProxy();
+            systemAction.updateSystemProxy();
           },
           checked: trayState.systemProxy,
         ),
@@ -137,7 +169,7 @@ class Tray {
     final autoStartMenuItem = MenuItem.checkbox(
       label: appLocalizations.autoLaunch,
       onClick: (_) async {
-        globalState.appController.updateAutoLaunch();
+        systemAction.updateAutoLaunch();
       },
       checked: trayState.autoLaunch,
     );
@@ -153,44 +185,43 @@ class Tray {
     final exitMenuItem = MenuItem(
       label: appLocalizations.exit,
       onClick: (_) async {
-        await globalState.appController.handleExit();
+        await systemAction.handleExit();
       },
     );
     menuItems.add(exitMenuItem);
     final menu = Menu(items: menuItems);
     await trayManager.setContextMenu(menu);
-    if (Platform.isLinux) {
+    if (system.isLinux) {
       await _updateSystemTray(
-        brightness: trayState.brightness,
-        force: focus,
+        isStart: trayState.isStart,
+        tunEnable: trayState.tunEnable,
       );
     }
+    updateTrayTitle(showTrayTitle: trayState.showTrayTitle, traffic: traffic);
   }
 
-  Future<void> updateTrayTitle([Traffic? traffic]) async {
-    // if (!system.isMacOS) {
-    //   return;
-    // }
-    // if (traffic == null) {
-    //   await trayManager.setTitle("");
-    // } else {
-    //   await trayManager.setTitle(
-    //     "${traffic.up.shortShow} ↑ \n${traffic.down.shortShow} ↓",
-    //   );
-    // }
+  Future<void> updateTrayTitle({
+    required bool showTrayTitle,
+    required Traffic traffic,
+  }) async {
+    if (!system.isMacOS) {
+      return;
+    }
+    if (!showTrayTitle) {
+      await trayManager.setTitle('');
+    } else {
+      await trayManager.setTitle(traffic.trayTitle);
+    }
   }
 
   Future<void> _copyEnv(int port) async {
     final url = 'http://127.0.0.1:$port';
 
-    final cmdline =
-        system.isWindows ? 'set \$env:all_proxy=$url' : 'export all_proxy=$url';
+    final cmdline = system.isWindows
+        ? 'set \$env:all_proxy=$url'
+        : 'export all_proxy=$url';
 
-    await Clipboard.setData(
-      ClipboardData(
-        text: cmdline,
-      ),
-    );
+    await Clipboard.setData(ClipboardData(text: cmdline));
   }
 }
 

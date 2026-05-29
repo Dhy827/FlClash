@@ -1,6 +1,8 @@
+import 'dart:math';
+
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/enum/enum.dart';
-import 'package:fl_clash/providers/config.dart';
+import 'package:fl_clash/providers/providers.dart';
 import 'package:fl_clash/state.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -10,8 +12,13 @@ import 'package:intl/intl.dart';
 class OutboundMode extends StatelessWidget {
   const OutboundMode({super.key});
 
+  void _handleChangeMode(Mode mode) {
+    globalState.container.read(setupActionProvider.notifier).changeMode(mode);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     final height = getWidgetHeight(2);
     return SizedBox(
       height: height,
@@ -33,42 +40,52 @@ class OutboundMode extends StatelessWidget {
                 iconData: Icons.call_split_sharp,
               ),
               child: Padding(
-                padding: const EdgeInsets.only(top: 12, bottom: 16),
+                padding: const EdgeInsets.only(top: 12, bottom: 12),
                 child: RadioGroup<Mode>(
                   groupValue: mode,
                   onChanged: (value) {
                     if (value == null) {
                       return;
                     }
-                    globalState.appController.changeMode(value);
+                    _handleChangeMode(value);
                   },
-                  child: Column(
-                    mainAxisSize: MainAxisSize.max,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      for (final item in Mode.values)
-                        Flexible(
-                          fit: FlexFit.tight,
-                          child: ListItem.radio(
-                            dense: true,
-                            horizontalTitleGap: 4,
-                            padding: EdgeInsets.only(left: 12.ap, right: 16.ap),
-                            delegate: RadioDelegate(
-                              onTab: () {
-                                globalState.appController.changeMode(item);
-                              },
-                              value: item,
+                  child: LayoutBuilder(
+                    builder: (_, constraints) {
+                      final maxHeight = constraints.maxHeight;
+                      return Column(
+                        mainAxisSize: MainAxisSize.max,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          for (final item in Mode.values)
+                            ListItem.radio(
+                              horizontalTitleGap: 8,
+                              tileTitleAlignment: ListTileTitleAlignment.center,
+                              minTileHeight: min(
+                                maxHeight / 3,
+                                globalState.measure.bodyMediumHeight + 16,
+                              ),
+                              minVerticalPadding: 0,
+                              padding: EdgeInsets.only(
+                                left: 12.ap,
+                                right: 16.ap,
+                              ),
+                              delegate: RadioDelegate(
+                                onTab: () {
+                                  _handleChangeMode(item);
+                                },
+                                value: item,
+                              ),
+                              title: Text(
+                                Intl.message(item.name),
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.bodyMedium?.toSoftBold,
+                              ),
                             ),
-                            title: Text(
-                              Intl.message(item.name),
-                              style: Theme.of(
-                                context,
-                              ).textTheme.bodyMedium?.toSoftBold,
-                            ),
-                          ),
-                        ),
-                    ],
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),
@@ -82,6 +99,10 @@ class OutboundMode extends StatelessWidget {
 
 class OutboundModeV2 extends StatelessWidget {
   const OutboundModeV2({super.key});
+
+  void _handleChangeMode(Mode mode) {
+    globalState.container.read(setupActionProvider.notifier).changeMode(mode);
+  }
 
   Color _getTextColor(BuildContext context, Mode mode) {
     return switch (mode) {
@@ -97,7 +118,6 @@ class OutboundModeV2 extends StatelessWidget {
     return SizedBox(
       height: height,
       child: CommonCard(
-        padding: EdgeInsets.zero,
         child: Consumer(
           builder: (_, ref, _) {
             final mode = ref.watch(
@@ -115,8 +135,8 @@ class OutboundModeV2 extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Container(
-                        padding: EdgeInsets.all(12),
-                        constraints: BoxConstraints.expand(),
+                        padding: const EdgeInsets.all(12),
+                        constraints: const BoxConstraints.expand(),
                         child: CommonTabBar<Mode>(
                           children: Map.fromEntries(
                             Mode.values.map(
@@ -125,9 +145,9 @@ class OutboundModeV2 extends StatelessWidget {
                                 Container(
                                   clipBehavior: Clip.antiAlias,
                                   alignment: Alignment.center,
-                                  decoration: BoxDecoration(),
+                                  decoration: const BoxDecoration(),
                                   height: height - 8.ap - 24,
-                                  padding: EdgeInsets.all(4),
+                                  padding: const EdgeInsets.all(4),
                                   child: Text(
                                     Intl.message(item.name),
                                     style: Theme.of(context)
@@ -144,13 +164,13 @@ class OutboundModeV2 extends StatelessWidget {
                               ),
                             ),
                           ),
-                          padding: EdgeInsets.symmetric(horizontal: 0),
+                          padding: const EdgeInsets.symmetric(horizontal: 0),
                           groupValue: mode,
                           onValueChanged: (value) {
                             if (value == null) {
                               return;
                             }
-                            globalState.appController.changeMode(value);
+                            _handleChangeMode(value);
                           },
                           thumbColor: thumbColor,
                         ),
@@ -160,7 +180,7 @@ class OutboundModeV2 extends StatelessWidget {
                       color: thumbColor.opacity50,
                       height: 8.ap,
                       width: constraints.maxWidth,
-                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       // child: Row(
                       //   children: [
                       //     Container(

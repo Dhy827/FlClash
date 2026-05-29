@@ -1,7 +1,12 @@
+import 'dart:io';
+
+import 'package:collection/collection.dart';
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/enum/enum.dart';
 import 'package:flutter/material.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+
+import 'clash_config.dart';
 
 part 'generated/common.freezed.dart';
 part 'generated/common.g.dart';
@@ -32,6 +37,33 @@ abstract class Package with _$Package {
 
   factory Package.fromJson(Map<String, Object?> json) =>
       _$PackageFromJson(json);
+}
+
+extension PackagesExt on List<Package> {
+  List<Package> getViewList({
+    required List<String> pinedList,
+    required AccessSortType sortType,
+    required bool isFilterSystemApp,
+    required bool isFilterNonInternetApp,
+  }) {
+    return where(
+      (item) =>
+          (isFilterSystemApp ? item.system == false : true) &&
+          (isFilterNonInternetApp ? item.internet == true : true),
+    ).sorted((a, b) {
+      final isSelectA = pinedList.contains(a.packageName);
+      final isSelectB = pinedList.contains(b.packageName);
+
+      if (isSelectA != isSelectB) {
+        return isSelectA ? -1 : 1;
+      }
+      return switch (sortType) {
+        AccessSortType.none => 0,
+        AccessSortType.name => a.label.compareTo(b.label),
+        AccessSortType.time => b.lastUpdateTime.compareTo(a.lastUpdateTime),
+      };
+    });
+  }
 }
 
 @freezed
@@ -187,15 +219,16 @@ extension TrackerInfosStateExt on TrackerInfosState {
 const defaultDavFileName = 'backup.zip';
 
 @freezed
-abstract class DAV with _$DAV {
-  const factory DAV({
+abstract class DAVProps with _$DAVProps {
+  const factory DAVProps({
     required String uri,
     required String user,
     required String password,
     @Default(defaultDavFileName) String fileName,
-  }) = _DAV;
+  }) = _DAVProps;
 
-  factory DAV.fromJson(Map<String, Object?> json) => _$DAVFromJson(json);
+  factory DAVProps.fromJson(Map<String, Object?> json) =>
+      _$DAVPropsFromJson(json);
 }
 
 @freezed
@@ -205,8 +238,8 @@ abstract class FileInfo with _$FileInfo {
 }
 
 extension FileInfoExt on FileInfo {
-  String get desc =>
-      '${size.traffic.show}  ·  ${lastModified.lastUpdateTimeDesc}';
+  String getDesc(BuildContext context) =>
+      '${size.traffic.show}  ·  ${lastModified.getLastUpdateTimeDesc(context)}';
 }
 
 @freezed
@@ -237,6 +270,10 @@ extension TrafficExt on Traffic {
     return '${up.traffic.show} ↑ ${down.traffic.show} ↓';
   }
 
+  String get trayTitle {
+    return '${up.shortTraffic.show}/s \n ${down.shortTraffic.show}/s';
+  }
+
   num get speed => up + down;
 }
 
@@ -251,20 +288,9 @@ extension TrafficShowExt on TrafficShow {
 }
 
 @freezed
-abstract class Proxy with _$Proxy {
-  const factory Proxy({
-    required String name,
-    required String type,
-    String? now,
-  }) = _Proxy;
-
-  factory Proxy.fromJson(Map<String, Object?> json) => _$ProxyFromJson(json);
-}
-
-@freezed
 abstract class Group with _$Group {
   const factory Group({
-    required GroupType type,
+    @JsonKey(fromJson: GroupType.parse) required GroupType type,
     @Default([]) List<Proxy> all,
     String? now,
     bool? hidden,
@@ -315,7 +341,7 @@ extension ColorSchemesExt on ColorSchemes {
               dynamicSchemeVariant: schemeVariant,
             )
           : ColorScheme.fromSeed(
-              seedColor: Color(defaultPrimaryColor),
+              seedColor: const Color(defaultPrimaryColor),
               brightness: Brightness.dark,
               dynamicSchemeVariant: schemeVariant,
             );
@@ -326,7 +352,7 @@ extension ColorSchemesExt on ColorSchemes {
             dynamicSchemeVariant: schemeVariant,
           )
         : ColorScheme.fromSeed(
-            seedColor: Color(defaultPrimaryColor),
+            seedColor: const Color(defaultPrimaryColor),
             dynamicSchemeVariant: schemeVariant,
           );
   }
@@ -423,33 +449,20 @@ abstract class Field with _$Field {
   }) = _Field;
 }
 
-enum PopupMenuItemType { primary, danger }
-
 class PopupMenuItemData {
   const PopupMenuItemData({
     this.icon,
     required this.label,
-    required this.onPressed,
+    this.onPressed,
     this.danger = false,
+    this.subItems = const [],
   });
 
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
   final bool danger;
-}
-
-@freezed
-abstract class AndroidState with _$AndroidState {
-  const factory AndroidState({
-    required String currentProfileName,
-    required String stopText,
-    required bool onlyStatisticsProxy,
-    required bool crashlytics,
-  }) = _AndroidState;
-
-  factory AndroidState.fromJson(Map<String, Object?> json) =>
-      _$AndroidStateFromJson(json);
+  final List<PopupMenuItemData> subItems;
 }
 
 class CloseWindowIntent extends Intent {
@@ -480,16 +493,65 @@ extension ResultExt on Result {
 @freezed
 abstract class Script with _$Script {
   const factory Script({
-    required String id,
+    required int id,
     required String label,
-    required String content,
+    required DateTime lastUpdateTime,
   }) = _Script;
 
-  factory Script.create({required String label, required String content}) {
-    return Script(id: utils.uuidV4, label: label, content: content);
+  factory Script.fromJson(Map<String, Object?> json) => _$ScriptFromJson(json);
+
+  factory Script.create({required String label}) {
+    return Script(
+      id: snowflake.id,
+      label: label,
+      lastUpdateTime: DateTime.now(),
+    );
+  }
+}
+
+extension ScriptsExt on List<Script> {
+  Script? get(int? id) {
+    if (id == null) {
+      return null;
+    }
+    final index = indexWhere((script) => script.id == id);
+    if (index != -1) {
+      return this[index];
+    }
+    return null;
+  }
+}
+
+extension ScriptExt on Script {
+  String get fileName => '$id.js';
+
+  Future<String> get path async => appPath.getScriptPath(id.toString());
+
+  Future<String?> get content async {
+    final file = File(await path);
+    if (await file.exists()) {
+      return file.readAsString();
+    }
+    return null;
   }
 
-  factory Script.fromJson(Map<String, Object?> json) => _$ScriptFromJson(json);
+  Future<Script> save(String content) async {
+    final file = File(await path);
+    if (!await file.exists()) {
+      await file.create(recursive: true);
+    }
+    await file.writeAsString(content);
+    return copyWith(lastUpdateTime: DateTime.now());
+  }
+
+  Future<Script> saveWithPath(String copyPath) async {
+    final file = File(await path);
+    if (!await file.exists()) {
+      await file.create(recursive: true);
+    }
+    await File(copyPath).copy(copyPath);
+    return copyWith(lastUpdateTime: DateTime.now());
+  }
 }
 
 @freezed
@@ -512,8 +574,24 @@ extension DelayStateExt on DelayState {
     if (delay != other.delay) {
       return delay.compareTo(other.delay);
     }
-    if (group && !group) return -1;
-    if (!group && group) return 1;
+    if (group && !other.group) return -1;
+    if (!group && other.group) return 1;
     return 0;
   }
+}
+
+@freezed
+abstract class UpdatingMessage with _$UpdatingMessage {
+  const factory UpdatingMessage({
+    required String label,
+    required String message,
+  }) = _UpdatingMessage;
+}
+
+@freezed
+abstract class IconButtonData with _$IconButtonData {
+  const factory IconButtonData({
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) = _IconButtonData;
 }

@@ -10,6 +10,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class Utils {
+  static Utils? _instance;
+
+  Utils._internal();
+
+  factory Utils() {
+    _instance ??= Utils._internal();
+    return _instance!;
+  }
+
   Color? getDelayColor(int? delay) {
     if (delay == null) return null;
     if (delay < 0) return Colors.red;
@@ -27,7 +36,7 @@ class Utils {
   }
 
   String getDateStringLast2(int value) {
-    var valueRaw = '0$value';
+    final valueRaw = '0$value';
     return valueRaw.substring(valueRaw.length - 2);
   }
 
@@ -36,7 +45,7 @@ class Utils {
         'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final random = Random();
 
-    int length = minLength + random.nextInt(maxLength - minLength + 1);
+    final int length = minLength + random.nextInt(maxLength - minLength + 1);
 
     String result = '';
     for (int i = 0; i < length; i++) {
@@ -67,11 +76,11 @@ class Utils {
   }
 
   String getTimeDifference(DateTime dateTime) {
-    var currentDateTime = DateTime.now();
-    var difference = currentDateTime.difference(dateTime);
-    var inHours = difference.inHours;
-    var inMinutes = difference.inMinutes;
-    var inSeconds = difference.inSeconds;
+    final currentDateTime = DateTime.now();
+    final difference = currentDateTime.difference(dateTime);
+    final inHours = difference.inHours;
+    final inMinutes = difference.inMinutes;
+    final inSeconds = difference.inSeconds;
 
     return '${getDateStringLast2(inHours)}:${getDateStringLast2(inMinutes)}:${getDateStringLast2(inSeconds)}';
   }
@@ -93,7 +102,7 @@ class Utils {
 
   Locale? getLocaleForString(String? localString) {
     if (localString == null) return null;
-    var localSplit = localString.split('_');
+    final localSplit = localString.split('_');
     if (localSplit.length == 1) {
       return Locale(localSplit[0]);
     }
@@ -142,38 +151,35 @@ class Utils {
     }
   }
 
-  String getTrayIconPath({required Brightness brightness}) {
-    if (system.isMacOS) {
-      return 'assets/images/icon_white.png';
-    }
+  String get traySuffix {
     final suffix = system.isWindows ? 'ico' : 'png';
-    return 'assets/images/icon.$suffix';
-    // return switch (brightness) {
-    //   Brightness.dark => "assets/images/icon_white.$suffix",
-    //   Brightness.light => "assets/images/icon_black.$suffix",
-    // };
+    return 'assets/images/icon/status_2.$suffix';
   }
 
   int compareVersions(String version1, String version2) {
-    List<String> v1 = version1.split('+')[0].split('.');
-    List<String> v2 = version2.split('+')[0].split('.');
-    int major1 = int.parse(v1[0]);
-    int major2 = int.parse(v2[0]);
+    final List<String> v1 = version1.split('+')[0].split('.');
+    final List<String> v2 = version2.split('+')[0].split('.');
+    final int major1 = int.parse(v1[0]);
+    final int major2 = int.parse(v2[0]);
     if (major1 != major2) {
       return major1.compareTo(major2);
     }
-    int minor1 = v1.length > 1 ? int.parse(v1[1]) : 0;
-    int minor2 = v2.length > 1 ? int.parse(v2[1]) : 0;
+    final int minor1 = v1.length > 1 ? int.parse(v1[1]) : 0;
+    final int minor2 = v2.length > 1 ? int.parse(v2[1]) : 0;
     if (minor1 != minor2) {
       return minor1.compareTo(minor2);
     }
-    int patch1 = v1.length > 2 ? int.parse(v1[2]) : 0;
-    int patch2 = v2.length > 2 ? int.parse(v2[2]) : 0;
+    final int patch1 = v1.length > 2 ? int.parse(v1[2]) : 0;
+    final int patch2 = v2.length > 2 ? int.parse(v2[2]) : 0;
     if (patch1 != patch2) {
       return patch1.compareTo(patch2);
     }
-    int build1 = version1.contains('+') ? int.parse(version1.split('+')[1]) : 0;
-    int build2 = version2.contains('+') ? int.parse(version2.split('+')[1]) : 0;
+    final int build1 = version1.contains('+')
+        ? int.parse(version1.split('+')[1])
+        : 0;
+    final int build2 = version2.contains('+')
+        ? int.parse(version2.split('+')[1])
+        : 0;
     return build1.compareTo(build2);
   }
 
@@ -293,7 +299,7 @@ class Utils {
   }
 
   Future<String?> getLocalIpAddress() async {
-    List<NetworkInterface> interfaces =
+    final List<NetworkInterface> interfaces =
         await NetworkInterface.list(includeLoopback: false)
           ..sort((a, b) {
             if (a.isWifi && !b.isWifi) return -1;
@@ -324,16 +330,33 @@ class Utils {
 
   FutureOr<T> handleWatch<T>({
     required Function function,
-    required void Function(T data, int elapsedMilliseconds) onWatch,
+    required void Function() onStart,
+    required void Function(T data, int elapsedMilliseconds) onEnd,
   }) async {
-    if (kDebugMode) {
+    if (kDebugMode && watchExecution) {
+      onStart();
       final stopwatch = Stopwatch()..start();
       final res = await function();
       stopwatch.stop();
-      onWatch(res, stopwatch.elapsedMilliseconds);
+      onEnd(res, stopwatch.elapsedMilliseconds);
       return res;
     }
     return await function();
+  }
+
+  int fastHash(String string) {
+    var hash = 0xcbf29ce484222325;
+
+    var i = 0;
+    while (i < string.length) {
+      final codeUnit = string.codeUnitAt(i++);
+      hash ^= codeUnit >> 8;
+      hash *= 0x100000001b3;
+      hash ^= codeUnit & 0xFF;
+      hash *= 0x100000001b3;
+    }
+
+    return hash;
   }
 }
 

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:fl_clash/common/common.dart';
 import 'package:fl_clash/models/models.dart';
@@ -7,29 +6,18 @@ import 'package:webdav_client/webdav_client.dart';
 
 class DAVClient {
   late Client client;
-  Completer<bool> pingCompleter = Completer();
   late String fileName;
 
-  DAVClient(DAV dav) {
-    client = newClient(
-      dav.uri,
-      user: dav.user,
-      password: dav.password,
-    );
+  DAVClient(DAVProps dav) {
+    client = newClient(dav.uri, user: dav.user, password: dav.password);
     fileName = dav.fileName;
-    client.setHeaders(
-      {
-        'accept-charset': 'utf-8',
-        'Content-Type': 'text/xml',
-      },
-    );
+    client.setHeaders({'accept-charset': 'utf-8', 'Content-Type': 'text/xml'});
     client.setConnectTimeout(8000);
     client.setSendTimeout(60000);
     client.setReceiveTimeout(60000);
-    pingCompleter.complete(_ping());
   }
 
-  Future<bool> _ping() async {
+  Future<bool> ping() async {
     try {
       await client.ping();
       return true;
@@ -42,15 +30,16 @@ class DAVClient {
 
   String get backupFile => '$root/$fileName';
 
-  Future<bool> backup(Uint8List data) async {
+  Future<bool> backup(String localFilePath) async {
     await client.mkdir(root);
-    await client.write(backupFile, data);
+    await client.writeFromFile(localFilePath, backupFile);
     return true;
   }
 
-  Future<List<int>> recovery() async {
+  Future<bool> restore() async {
     await client.mkdir(root);
-    final data = await client.read(backupFile);
-    return data;
+    final backupFilePath = await appPath.backupFilePath;
+    await client.read2File(backupFile, backupFilePath);
+    return true;
   }
 }

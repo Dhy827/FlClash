@@ -2,12 +2,16 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
-
-import 'print.dart';
+import 'package:fl_clash/common/common.dart';
 
 extension StringExtension on String {
   bool get isUrl {
-    return RegExp(r'^(http|https|ftp)://').hasMatch(this);
+    final uri = Uri.tryParse(this);
+    return uri != null &&
+        (uri.scheme == 'http' ||
+            uri.scheme == 'https' ||
+            uri.scheme == 'ftp') &&
+        uri.host.isNotEmpty;
   }
 
   dynamic get splitByMultipleSeparators {
@@ -22,11 +26,21 @@ extension StringExtension on String {
     return toLowerCase().compareTo(other.toLowerCase());
   }
 
+  String safeSubstring(int start, [int? end]) {
+    if (isEmpty) return '';
+    final safeStart = start.clamp(0, length);
+    if (end == null) {
+      return substring(safeStart);
+    }
+    final safeEnd = end.clamp(safeStart, length);
+    return substring(safeStart, safeEnd);
+  }
+
   List<int> get encodeUtf16LeWithBom {
     final byteData = ByteData(length * 2);
     final bom = [0xFF, 0xFE];
     for (int i = 0; i < length; i++) {
-      int charCode = codeUnitAt(i);
+      final int charCode = codeUnitAt(i);
       byteData.setUint16(i * 2, charCode, Endian.little);
     }
     return bom + byteData.buffer.asUint8List();
@@ -68,13 +82,33 @@ extension StringExtension on String {
   // bool containsToLower(String target) {
   //   return toLowerCase().contains(target);
   // }
+
+  Future<T> commonToJSON<T>() async {
+    const thresholdLimit = 51200;
+    if (length < thresholdLimit) {
+      return json.decode(this);
+    } else {
+      return decodeJSONTask<T>(this);
+    }
+  }
+
+  String? get value {
+    if (isEmpty) {
+      return null;
+    }
+    return this;
+  }
 }
 
-extension StringExtensionSafe on String? {
-  String getSafeValue(String defaultValue) {
-    if (this == null || this!.isEmpty) {
-      return defaultValue;
+extension StringNullExt on String? {
+  String takeFirstValid(List<String?> others, {String defaultValue = ''}) {
+    if (this != null && this!.trim().isNotEmpty) return this!.trim();
+
+    for (final s in others) {
+      if (s != null && s.trim().isNotEmpty) {
+        return s.trim();
+      }
     }
-    return this!;
+    return defaultValue;
   }
 }

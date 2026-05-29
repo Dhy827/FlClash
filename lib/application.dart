@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:fl_clash/common/common.dart';
@@ -13,7 +14,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'controller.dart';
 import 'pages/pages.dart';
 
 class Application extends ConsumerStatefulWidget {
@@ -24,15 +24,15 @@ class Application extends ConsumerStatefulWidget {
 }
 
 class ApplicationState extends ConsumerState<Application> {
-  Timer? _autoUpdateGroupTaskTimer;
   Timer? _autoUpdateProfilesTaskTimer;
+  bool _preHasVpn = false;
 
   final _pageTransitionsTheme = const PageTransitionsTheme(
     builders: <TargetPlatform, PageTransitionsBuilder>{
-      TargetPlatform.android: CommonPageTransitionsBuilder(),
-      TargetPlatform.windows: CommonPageTransitionsBuilder(),
-      TargetPlatform.linux: CommonPageTransitionsBuilder(),
-      TargetPlatform.macOS: CommonPageTransitionsBuilder(),
+      TargetPlatform.android: commonSharedXPageTransitions,
+      TargetPlatform.windows: commonSharedXPageTransitions,
+      TargetPlatform.linux: commonSharedXPageTransitions,
+      TargetPlatform.macOS: commonSharedXPageTransitions,
     },
   );
 
@@ -46,22 +46,45 @@ class ApplicationState extends ConsumerState<Application> {
   @override
   void initState() {
     super.initState();
-    _autoUpdateProfilesTask();
-    globalState.appController = AppController(context, ref);
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) async {
-      final currentContext = globalState.navigatorKey.currentContext;
-      if (currentContext != null) {
-        globalState.appController = AppController(currentContext, ref);
+      if (globalState.navigatorKey.currentContext != null) {
+        await globalState.attach();
+      } else {
+        exit(0);
       }
-      await globalState.appController.init();
-      globalState.appController.initLink();
+      _autoUpdateProfilesTask();
+      _initLink();
       app?.initShortcuts();
+    });
+  }
+
+  void _initLink() {
+    linkManager.initAppLinksListen((url) async {
+      final res = await globalState.showMessage(
+        title: currentAppLocalizations.addProfile,
+        message: TextSpan(
+          children: [
+            TextSpan(text: currentAppLocalizations.doYouWantToPass),
+            TextSpan(
+              text: ' $url ',
+              style: TextStyle(
+                color: context.colorScheme.primary,
+                decoration: TextDecoration.underline,
+                decorationColor: context.colorScheme.primary,
+              ),
+            ),
+            TextSpan(text: currentAppLocalizations.createProfile),
+          ],
+        ),
+      );
+      if (res != true) return;
+      ref.read(profilesActionProvider.notifier).addProfileFormURL(url);
     });
   }
 
   void _autoUpdateProfilesTask() {
     _autoUpdateProfilesTaskTimer = Timer(const Duration(minutes: 20), () async {
-      await globalState.appController.autoUpdateProfiles();
+      await ref.read(profilesActionProvider.notifier).autoUpdateProfiles();
       _autoUpdateProfilesTask();
     });
   }
@@ -82,11 +105,13 @@ class ApplicationState extends ConsumerState<Application> {
       child: CoreManager(
         child: ConnectivityManager(
           onConnectivityChanged: (results) async {
-            if (!results.contains(ConnectivityResult.vpn)) {
-              coreController.closeConnections();
+            commonPrint.log('connectivityChanged ${results.toString()}');
+            ref.read(systemActionProvider.notifier).updateLocalIp();
+            final hasVpn = results.contains(ConnectivityResult.vpn);
+            if (_preHasVpn == hasVpn) {
+              ref.read(checkIpNumProvider.notifier).add();
             }
-            globalState.appController.updateLocalIp();
-            globalState.appController.addCheckIpNumDebounce();
+            _preHasVpn = hasVpn;
           },
           child: child,
         ),
@@ -102,7 +127,7 @@ class ApplicationState extends ConsumerState<Application> {
   }
 
   Widget _buildApp({required Widget child}) {
-    return MessageManager(child: ThemeManager(child: child));
+    return StatusManager(child: ThemeManager(child: child));
   }
 
   @override
@@ -162,11 +187,9 @@ class ApplicationState extends ConsumerState<Application> {
   @override
   Future<void> dispose() async {
     linkManager.destroy();
-    _autoUpdateGroupTaskTimer?.cancel();
     _autoUpdateProfilesTaskTimer?.cancel();
     await coreController.destroy();
-    await globalState.appController.savePreferences();
-    await globalState.appController.handleExit();
+    await ref.read(systemActionProvider.notifier).handleExit();
     super.dispose();
   }
 }

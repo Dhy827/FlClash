@@ -6,6 +6,7 @@ import 'package:fl_clash/models/models.dart';
 import 'package:fl_clash/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 
 import 'item.dart';
 
@@ -52,7 +53,7 @@ class _ConnectionsViewState extends ConsumerState<ConnectionsView> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) {
         await _updateConnections();
-        timer = Timer(Duration(seconds: 1), () async {
+        timer = Timer(const Duration(seconds: 1), () async {
           _updateConnectionsTask();
         });
       }
@@ -72,7 +73,7 @@ class _ConnectionsViewState extends ConsumerState<ConnectionsView> {
   }
 
   Future<void> _handleBlockConnection(String id) async {
-    coreController.closeConnection(id);
+    await coreController.closeConnection(id);
     await _updateConnections();
   }
 
@@ -87,6 +88,7 @@ class _ConnectionsViewState extends ConsumerState<ConnectionsView> {
 
   @override
   Widget build(BuildContext context) {
+    final appLocalizations = context.appLocalizations;
     return CommonScaffold(
       title: appLocalizations.connections,
       onKeywordsUpdate: _onKeywordsUpdate,
@@ -99,6 +101,7 @@ class _ConnectionsViewState extends ConsumerState<ConnectionsView> {
           if (connections.isEmpty) {
             return NullStatus(
               label: appLocalizations.nullTip(appLocalizations.connections),
+              illustration: const ConnectionEmptyIllustration(),
             );
           }
           final items = connections
@@ -125,16 +128,10 @@ class _ConnectionsViewState extends ConsumerState<ConnectionsView> {
               )
               .separated(const Divider(height: 0))
               .toList();
-          return ListView.builder(
+          return SuperListView.builder(
             controller: _scrollController,
             itemBuilder: (context, index) {
               return items[index];
-            },
-            itemExtentBuilder: (index, _) {
-              if (index.isOdd) {
-                return 0;
-              }
-              return TrackerInfoItem.height;
             },
             itemCount: connections.length,
           );

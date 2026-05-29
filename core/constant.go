@@ -66,6 +66,11 @@ type ExternalProvider struct {
 	SubscriptionInfo *provider.SubscriptionInfo `json:"subscription-info"`
 }
 
+type ProxiesData struct {
+	Proxies map[string]constant.Proxy `json:"proxies"`
+	All     []string                  `json:"all"`
+}
+
 const (
 	messageMethod                  Method = "message"
 	initClashMethod                Method = "initClash"
@@ -82,7 +87,7 @@ const (
 	asyncTestDelayMethod           Method = "asyncTestDelay"
 	getConnectionsMethod           Method = "getConnections"
 	closeConnectionsMethod         Method = "closeConnections"
-	resetConnectionsMethod         Method = "resetConnectionsMethod"
+	resetConnectionsMethod         Method = "resetConnections"
 	closeConnectionMethod          Method = "closeConnection"
 	getExternalProvidersMethod     Method = "getExternalProviders"
 	getExternalProviderMethod      Method = "getExternalProvider"
